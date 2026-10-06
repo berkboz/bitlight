@@ -1,3 +1,12 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/readme/hero-dark.png">
+  <img alt="Bitlight: a sundial drawn in two inks, lit by a lamp" src="media/readme/hero-light.png" width="100%">
+</picture>
+
+</div>
+
 # Bitlight
 
 **Objects drawn in one bit, lit by your pointer.**
@@ -13,6 +22,27 @@ lights; dot-matrix type; a square-wave score) and agent skills, so Claude Code
 or Codex can make new figures and films and check their own frames.
 
 **Site:** https://berkboz.github.io/bitlight/
+
+## Twenty-two figures
+
+The frame at rest is the thumbnail, so each figure has a designed lamp
+position. Nothing in a figure moves except the light. Some read-outs say more
+than angles: the sundial tells the time, the moon names its phase, the dice
+name the brightest face.
+
+**Objects**
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/readme/objects-dark.png">
+  <img alt="Seventeen objects on plates, drawn in one bit" src="media/readme/objects-light.png" width="100%">
+</picture>
+
+**Scenes**: whole set-ups built from shared props. Same kernel, same budget.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="media/readme/scenes-dark.png">
+  <img alt="Five scenes: workstation, computer, server room, cafe, cloud" src="media/readme/scenes-light.png" width="100%">
+</picture>
 
 ```
 objects  Arch · Bowl · Cage · Columns · Dice · Gear · Keycap · Moon · Mug
@@ -132,11 +162,20 @@ Then open the sheets. Passing is necessary, not sufficient.
 
 Details and how each is enforced: [`skills/bitlight-create/rules.md`](skills/bitlight-create/rules.md).
 
-## Films
+## Films, same look
 
 Same lighting code as the figures (`src/core.js`), but geometry, cameras and
 lights may move every frame. Words are drawn on the same dot grid; shots cut
-hard; the score is square waves. Needs FFmpeg.
+hard; the score is square waves. The square ones are made for feeds. Needs FFmpeg.
+
+| | | | |
+|:-:|:-:|:-:|:-:|
+| <img src="media/readme/pointer.gif" width="220" alt="Move the light"> | <img src="media/readme/moon-loop.gif" width="220" alt="One light"> | <img src="media/readme/sundial-day.gif" width="220" alt="A day, fast"> | <img src="media/readme/montage.gif" width="220" alt="Twenty-two"> |
+| [Move the light](media/pointer.mp4) | [One light](media/moon-loop.mp4) | [A day, fast](media/sundial-day.mp4) | [Twenty-two](media/montage.mp4) |
+
+Previews are silent GIFs; the links open the full films with sound
+(mp4 and webm in [`media/`](media/)). The 16:9 one, [`scenes`](media/scenes.mp4),
+is 35 s of the props in motion.
 
 | Film | Format | What it shows |
 |---|---|---|
