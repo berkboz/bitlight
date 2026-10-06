@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Bitlight bench</title>
+<!-- Frame sheet: one figure under eight lamps. Driven by look.mjs (served by serve.mjs); never edit per figure. -->
+<style>
+  :root { --bitlight-lit: #e4e6df; --bitlight-unlit: #121411; }
+  body { margin: 0; padding: 16px; background: #e4e6df; font: 12px/1.3 ui-monospace, monospace; color: #121411; }
+  body.dark { background: #0e100e; color: #d9dcd2; --bitlight-lit: #d9dcd2; --bitlight-unlit: #0e100e; }
+  #sheet { display: grid; grid-template-columns: repeat(4, max-content); gap: 12px; }
+  figure { margin: 0; }
+  figcaption { padding-top: 4px; }
+</style>
+<h3 id="title"></h3>
+<div id="sheet"></div>
+<script type="module">
+  import { mount } from "./src/bitlight.js";
+  const q = new URLSearchParams(location.search);
+  const name = q.get("fig"), theme = q.get("theme") || "light", cell = +(q.get("cell") || 2);
+  if (theme === "dark") document.body.classList.add("dark");
+  // rest, then seven lamps around the plate, then dead centre
+  const LAMPS = [null, [0.12, 0.15], [0.5, 0.08], [0.9, 0.2], [0.92, 0.65], [0.5, 0.95], [0.08, 0.75], [0.5, 0.5]];
+  try {
+    const def = (await import(`./src/figures/${name}.js`)).default;
+    window.figs = LAMPS.map((uv) => {
+      const fig = document.createElement("figure");
+      const cap = document.createElement("figcaption");
+      document.getElementById("sheet").append(fig);
+      const f = mount(fig, def, { cell, theme });
+      const text = uv ? f.lampAt(uv[0], uv[1]) : f.rest();
+      cap.textContent = (uv ? `lamp ${uv.join(",")}` : "rest") + " · " + text;
+      fig.append(cap);
+      return f;
+    });
+    document.getElementById("title").textContent = `${def.name} — ${def.means}`;
+    window.ready = true;
+  } catch (e) {
+    window.failed = String(e && e.stack || e);
+  }
+</script>
