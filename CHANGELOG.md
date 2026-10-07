@@ -7,6 +7,8 @@
   three as `<Bitlight />` props. Reference and roadmap in `docs/CONTROLS.md`.
 - **Six screens** (`bayer`, `bayer4`, `dots`, `lines`, `diagonal`, `noise`), exported
   as `SCREENS`. All ordered; error diffusion is deliberately not offered.
+- **Tones**: `tones: 2 | 4 | 8 | 16` or an exact `palette` for more than two inks, still ordered. `core.ditherLevels()` and `core.ramp()`.
+- **Pictures and video**: `bitlight/image` (luma, levels, sharpen, grid, dither, paint), the `bitlight.mjs` command for images and video via FFmpeg, and `photo.html` for the browser (image, video, camera, PNG and video export).
 - **Lamp options**: power, falloff, ambient, contrast and a spot cone.
 - `core.shade()` takes an optional `gamma`; `core.dither()` takes an optional `screen`.
   Defaults are unchanged, so existing figures and the five films render as before.

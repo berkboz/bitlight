@@ -1,0 +1,140 @@
+<section class="ph" id="photo">
+  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose an image or video, or drop one here">
+    <canvas id="out" width="320" height="180" aria-label="Result" hidden></canvas>
+    <div class="hint" id="hint"><b>Drop an image or a video here</b><span>or</span>
+      <span class="row-btn"><button type="button" class="chip" id="pick">Choose a file</button><button type="button" class="chip" id="cam">Use camera</button></span>
+      <small>Nothing is uploaded. It all runs in your browser.</small></div>
+  </div>
+  <input type="file" id="file" accept="image/*,video/*" hidden>
+  <div class="bar2">
+    <button type="button" class="chip" id="play" hidden>Pause</button>
+    <button type="button" class="chip" id="png" disabled>Save PNG</button>
+    <button type="button" class="chip" id="rec" disabled>Record video</button>
+    <span class="note" id="status" aria-live="polite"></span>
+  </div>
+  <div class="panel">
+    <div class="r"><span class="k">Ink</span><div class="chips" id="inks"></div></div>
+    <div class="r"><span class="k">Tones</span><div class="chips" id="tones"></div></div>
+    <div class="r"><span class="k">Screen</span><div class="chips" id="screens"></div></div>
+    <div class="sliders">
+      <label class="sl"><span>Dots across <output id="o-cols"></output></span><input type="range" id="s-cols" min="80" max="520" step="10"></label>
+      <label class="sl"><span>Contrast <output id="o-contrast"></output></span><input type="range" id="s-contrast" min="0.5" max="2" step="0.05"></label>
+      <label class="sl"><span>Brightness <output id="o-brightness"></output></span><input type="range" id="s-brightness" min="-0.5" max="0.5" step="0.01"></label>
+      <label class="sl"><span>Mid-tones <output id="o-gamma"></output></span><input type="range" id="s-gamma" min="0.4" max="2" step="0.02"></label>
+      <label class="sl"><span>Sharpen <output id="o-sharpen"></output></span><input type="range" id="s-sharpen" min="0" max="2" step="0.05"></label>
+      <label class="sl"><span>Steady (video) <output id="o-smooth"></output></span><input type="range" id="s-smooth" min="0" max="0.9" step="0.05"></label>
+    </div>
+    <div class="r"><span class="k">Options</span><div class="chips"><button class="chip" type="button" id="invert">Invert</button><button class="chip" type="button" id="auto">Auto levels</button><button class="chip" type="button" id="reset">Reset</button></div></div>
+  </div>
+  <video id="vid" playsinline muted loop hidden></video>
+</section>
+<script src="dist/bitlight.global.js"></script>
+<script>
+(() => {
+  const I = window.Bitlight.image, $ = (id) => document.getElementById(id);
+  const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+  const PRESETS = [
+    ["Bone", "#f4f3ef", "#0f0f0f"], ["Ember", "#f04820", "#0f0f0f"], ["Amber", "#ffb000", "#1d1000"], ["Phosphor", "#7dff9a", "#041208"],
+    ["Blueprint", "#e8f1ff", "#0b2a6b"], ["Riso", "#e0412b", "#f4ecd8"], ["Gameboy", "#0f380f", "#9bbc0f"], ["Dusk", "#ffe3b3", "#5b1a4a"], ["Mono", "#ffffff", "#000000"],
+  ];
+  const SCREENS = [["bayer", "Bayer 8"], ["bayer4", "Bayer 4"], ["dots", "Dots"], ["lines", "Lines"], ["diagonal", "Diagonal"], ["noise", "Grain"]];
+  const TONES = [[2, "1-bit · 2"], [4, "2-bit · 4"], [8, "3-bit · 8"], [16, "4-bit · 16"]];
+  const D = { cols: 320, contrast: 1.1, brightness: 0, gamma: 1, sharpen: 0.5, smooth: 0.35, invert: false, auto: true };
+  const S = { ...D, ink: 0, tones: 2, screen: "bayer" };
+  let source = null, kind = null, lumPrev = null, range = null, raf = 0, stream = null, rec = null;
+  const out = $("out"), ctx = out.getContext("2d", { alpha: false }), work = document.createElement("canvas"), wctx = work.getContext("2d", { willReadFrequently: true });
+  const status = (t) => { $("status").textContent = t; };
+
+  // ---- controls ----
+  const mk = (box, items, get, set, label) => items.forEach((it, i) => { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.dataset.i = i; label(b, it); b.addEventListener("click", () => { set(it, i); sync(); draw(); }); box.append(b); });
+  mk($("inks"), PRESETS, 0, (_, i) => { S.ink = i; }, (b, [n, l, u]) => { const s = document.createElement("i"); s.className = "sw"; s.style.background = `conic-gradient(${l} 0 50%, ${u} 0 100%)`; b.append(s, n); });
+  mk($("tones"), TONES, 0, ([n]) => { S.tones = n; }, (b, [, t]) => { b.textContent = t; });
+  mk($("screens"), SCREENS, 0, ([n]) => { S.screen = n; }, (b, [, t]) => { b.textContent = t; });
+  const SL = ["cols", "contrast", "brightness", "gamma", "sharpen", "smooth"];
+  const fmt = (k, v) => (k === "cols" ? String(v) : (+v).toFixed(2));
+  for (const k of SL) $(`s-${k}`).addEventListener("input", (e) => { S[k] = +e.target.value; sync(); if (k === "cols") { lumPrev = null; } draw(); });
+  $("invert").addEventListener("click", () => { S.invert = !S.invert; sync(); draw(); });
+  $("auto").addEventListener("click", () => { S.auto = !S.auto; sync(); draw(); });
+  $("reset").addEventListener("click", () => { Object.assign(S, D, { ink: 0, tones: 2, screen: "bayer" }); lumPrev = null; sync(); draw(); });
+  function sync() {
+    document.querySelectorAll("#inks .chip").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.i === S.ink)));
+    document.querySelectorAll("#tones .chip").forEach((b) => b.setAttribute("aria-pressed", String(TONES[b.dataset.i][0] === S.tones)));
+    document.querySelectorAll("#screens .chip").forEach((b) => b.setAttribute("aria-pressed", String(SCREENS[b.dataset.i][0] === S.screen)));
+    $("invert").setAttribute("aria-pressed", String(S.invert)); $("auto").setAttribute("aria-pressed", String(S.auto));
+    for (const k of SL) { $(`s-${k}`).value = S[k]; $(`o-${k}`).textContent = fmt(k, S[k]); }
+  }
+
+  // ---- the pipeline ----
+  function frame() {
+    if (!source) return;
+    const sw = kind === "image" ? source.naturalWidth : source.videoWidth, sh = kind === "image" ? source.naturalHeight : source.videoHeight;
+    if (!sw || !sh) return;
+    const W = S.cols, H = Math.max(2, Math.round((W * sh) / sw));
+    if (work.width !== W || work.height !== H) { work.width = W; work.height = H; out.width = W; out.height = H; lumPrev = null; range = null; }
+    wctx.imageSmoothingEnabled = true; wctx.imageSmoothingQuality = "high";
+    wctx.drawImage(source, 0, 0, W, H);
+    const lum = I.lumaFromRGBA(wctx.getImageData(0, 0, W, H).data, W, H);
+    if (kind === "video" && lumPrev && lumPrev.length === lum.length && S.smooth) for (let k = 0; k < lum.length; k++) lum[k] = lumPrev[k] * S.smooth + lum[k] * (1 - S.smooth);
+    lumPrev = Float32Array.from(lum);
+    let r;
+    if (kind === "video" && S.auto) { const m = I.levelsOf(lum); range = range ? [range[0] * 0.9 + m[0] * 0.1, range[1] * 0.9 + m[1] * 0.1] : m; r = range; }
+    I.tune(lum, W, H, { auto: S.auto, range: r, contrast: S.contrast, brightness: S.brightness, gamma: S.gamma, sharpen: S.sharpen, invert: S.invert });
+    const p = PRESETS[S.ink], colours = I.ramp(hex(p[2]), hex(p[1]), S.tones);
+    const levels = I.dither(lum, W, H, { screen: S.screen, tones: S.tones });
+    ctx.putImageData(new ImageData(I.paint(levels, W, H, colours, 1), W, H), 0, 0);
+  }
+  const draw = () => { if (kind === "image" || (kind === "video" && source.paused)) frame(); };
+  function loop() {
+    if (kind === "video" && !source.paused) frame();
+    raf = kind === "video" ? requestAnimationFrame(loop) : 0;
+  }
+
+  // ---- sources ----
+  function useImage(url) { stopAll(); const img = new Image(); img.onload = () => { source = img; kind = "image"; ready(); frame(); }; img.src = url; }
+  function useVideo(url, isStream) {
+    stopAll(); const v = $("vid"); source = v; kind = "video";
+    if (isStream) { v.srcObject = stream; v.muted = true; } else { v.srcObject = null; v.src = url; v.muted = false; }
+    v.onloadedmetadata = () => { ready(); v.play().catch(() => { v.muted = true; v.play(); }); cancelAnimationFrame(raf); loop(); };
+  }
+  function ready() {
+    $("hint").hidden = true; out.hidden = false; $("drop").style.minHeight = "0"; $("png").disabled = false; $("rec").disabled = false; $("play").hidden = kind !== "video"; $("play").textContent = "Pause";
+    status(kind === "video" ? "Live. Every frame goes through the same fixed screen, so it holds still." : "");
+  }
+  function stopAll() { cancelAnimationFrame(raf); rec && rec.state !== "inactive" && rec.stop(); if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; } const v = $("vid"); v.pause(); v.removeAttribute("src"); v.srcObject = null; lumPrev = null; range = null; }
+  function load(file) {
+    if (!file) return; const url = URL.createObjectURL(file);
+    if (file.type.startsWith("video/")) useVideo(url); else if (file.type.startsWith("image/")) useImage(url); else status("That is not an image or a video.");
+  }
+  $("pick").addEventListener("click", (e) => { e.stopPropagation(); $("file").click(); });
+  $("file").addEventListener("change", (e) => load(e.target.files[0]));
+  $("cam").addEventListener("click", async (e) => { e.stopPropagation(); try { stream = await navigator.mediaDevices.getUserMedia({ video: { width: 960 } }); useVideo(null, true); } catch { status("Camera not available or not allowed."); } });
+  const drop = $("drop");
+  drop.addEventListener("click", () => { if (!source) $("file").click(); });
+  drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); } });
+  for (const t of ["dragenter", "dragover"]) drop.addEventListener(t, (e) => { e.preventDefault(); drop.dataset.over = "1"; });
+  for (const t of ["dragleave", "drop"]) drop.addEventListener(t, (e) => { e.preventDefault(); delete drop.dataset.over; });
+  drop.addEventListener("drop", (e) => load(e.dataTransfer.files[0]));
+  addEventListener("paste", (e) => { const f = [...(e.clipboardData?.files || [])][0]; if (f) load(f); });
+  $("play").addEventListener("click", () => { const v = $("vid"); if (v.paused) { v.play(); $("play").textContent = "Pause"; } else { v.pause(); $("play").textContent = "Play"; } });
+
+  // ---- export ----
+  function bigCanvas(cell) { const c = document.createElement("canvas"); c.width = out.width * cell; c.height = out.height * cell; const x = c.getContext("2d"); x.imageSmoothingEnabled = false; x.drawImage(out, 0, 0, c.width, c.height); return c; }
+  const save = (blob, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+  $("png").addEventListener("click", () => bigCanvas(Math.max(2, Math.round(1600 / out.width))).toBlob((b) => save(b, "bitlight.png")));
+  $("rec").addEventListener("click", () => {
+    if (rec && rec.state === "recording") { rec.stop(); return; }
+    const cell = Math.max(2, Math.round(1280 / out.width)), c = document.createElement("canvas"); c.width = out.width * cell; c.height = out.height * cell;
+    const x = c.getContext("2d"); x.imageSmoothingEnabled = false;
+    const tick = () => { x.drawImage(out, 0, 0, c.width, c.height); if (rec && rec.state === "recording") requestAnimationFrame(tick); };
+    const ms = c.captureStream(30), v = $("vid");
+    if (kind === "video" && v.captureStream) { const a = (v.srcObject || v.captureStream()).getAudioTracks?.()[0]; if (a) ms.addTrack(a); }
+    const mime = ["video/webm;codecs=vp9", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m)), chunks = [];
+    rec = new MediaRecorder(ms, { mimeType: mime, videoBitsPerSecond: 8e6 });
+    rec.ondataavailable = (e) => chunks.push(e.data);
+    rec.onstop = () => { $("rec").textContent = "Record video"; status("Saved."); save(new Blob(chunks, { type: "video/webm" }), "bitlight.webm"); };
+    rec.start(); tick(); $("rec").textContent = "Stop and save"; status(kind === "video" ? "Recording the live result (plays in real time)." : "Recording.");
+    if (kind === "video" && !stream) { v.currentTime = 0; v.play(); v.onended = () => rec && rec.state === "recording" && rec.stop(); }
+  });
+  sync();
+})();
+</script>

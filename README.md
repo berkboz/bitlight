@@ -94,13 +94,14 @@ npx shadcn@latest add https://berkboz.github.io/bitlight/registry/bitlight.json
 
 ### Ink, screen, lamp
 
-Three knobs, all optional, all live (`handle.set()`), none of them re-march the
+Four knobs, all optional, all live (`handle.set()`), none of them re-march the
 geometry. Full reference, ranges and the roadmap: [`docs/CONTROLS.md`](docs/CONTROLS.md).
 
 ```js
 mount(el, sundial, {
   ink: { lit: "#f04820", unlit: "#0f0f0f" },   // any two CSS colours
   screen: "dots",                               // bayer · bayer4 · dots · lines · diagonal · noise
+  tones: 4,                                     // 2 (default, one bit) to 16 inks; or palette: ["#000", ...]
   light: { power: 3.2, falloff: 0.32, ambient: 0.035, contrast: 0.72, spot: true },
 });
 fig.set({ screen: "lines" });   // partial updates; fig.options returns what is live
@@ -110,6 +111,7 @@ fig.set({ screen: "lines" });   // partial updates; fig.options returns what is 
   (`--bitlight-lit`, `--bitlight-unlit`), which recolour every figure below
   them. `theme: "light"` paints empty ground with `lit`, `"dark"` with `unlit`.
   Keep 3:1 contrast or the edges sink.
+- **Tones.** `2` is one bit. `4`, `8`, `16` step through more inks between `unlit` and `lit`, or give an exact `palette`.
 - **Screen.** The order dots switch on, so the texture of the shading. Always an
   ordered 8×8 map, never diffusion.
 - **Lamp.** Still one light and one input. `spot` swaps the bare lamp for a cone.
@@ -126,6 +128,32 @@ page URL is a shareable link to the look.
 - Keyboard: focus a figure, arrows move the lamp, Esc rests. Each figure has
   `role="img"` and an `aria-label` from its `means`.
 - Geometry is ray-marched once at mount (30–190 ms); re-lighting costs 1–14 ms.
+
+## Your own pictures and video
+
+The same screens work on photographs, video and a camera feed. Nothing is
+uploaded: it runs in your browser or with FFmpeg on your machine.
+
+- **In the browser:** [`photo.html`](photo.html), live at https://brk.bz/bitlight/photo/.
+  Drop an image or a video, or switch on the camera. Pick ink, tones and screen, tune
+  contrast, mid-tones and sharpness, then save a PNG or record the result as video.
+- **As a command** (needs FFmpeg):
+
+```bash
+node bitlight.mjs image portrait.jpg --screen dots --ink f04820,0f0f0f
+node bitlight.mjs video clip.mp4 --tones 4 --palette 0f380f,306230,8bac0f,9bbc0f --cols 240
+```
+
+  Options: `--cols` dots across, `--cell` pixels per dot, `--screen`, `--tones`,
+  `--ink LIT,UNLIT` or `--palette A,B,...`, `--contrast --brightness --gamma
+  --sharpen --invert --no-auto`, and for video `--fps`, `--smooth` (temporal
+  steadiness) and `--no-audio`. Audio is kept.
+- **As a library:** `bitlight/image` (`process`, or the steps: `lumaFromRGBA`,
+  `toGrid`, `tune`, `dither`, `paint`). No DOM, no decoding, so it runs anywhere.
+
+Tips: more dots (`--cols 320`+) gives faces enough detail at 1 bit; 4 tones holds
+a face with far fewer; `--sharpen` is what keeps thin edges alive. Because every
+screen is fixed, dither does not crawl between video frames.
 
 ## Make a figure
 
@@ -226,7 +254,10 @@ media/             rendered films for the site
 look.mjs           figure checker + frame sheets
 test/smoke.mjs     package test (import, bounds, types, bundle, React, registry)
 build.mjs          generated files; --check for CI
-index.html         the site: inspector, gallery, films
+index.html         the site: inspector, Lab, gallery, films
+photo.html         photo, video and camera tool (runs in the browser)
+bitlight.mjs       the same as a command: image and video through FFmpeg
+src/image.js       the picture pipeline (no DOM)
 ```
 
 ## Development

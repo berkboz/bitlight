@@ -6,13 +6,13 @@
 import { createElement, useEffect, useRef } from "react";
 import { mount } from "./bitlight.js";
 
-export function Bitlight({ figure, cell = 3, theme = "auto", ink, screen, light, label, onRead, className, style }) {
+export function Bitlight({ figure, cell = 3, theme = "auto", ink, tones, palette, screen, light, label, onRead, className, style }) {
   const wrap = useRef(null);
   const read = useRef(onRead);
   read.current = onRead;
   const handle = useRef(null);
-  const live = useRef({ ink, screen, light });
-  live.current = { ink, screen, light };
+  const live = useRef({ ink, tones, palette, screen, light });
+  live.current = { ink, tones, palette, screen, light };
   useEffect(() => {
     const host = document.createElement("div");
     wrap.current.appendChild(host);
@@ -20,8 +20,8 @@ export function Bitlight({ figure, cell = 3, theme = "auto", ink, screen, light,
     return () => { h.destroy(); handle.current = null; host.remove(); };
   }, [figure, cell, theme, label]);
   // ink, screen and light change in place: no re-march
-  const key = JSON.stringify([ink, screen, light]);
-  useEffect(() => { handle.current && handle.current.set({ ink, screen, light }); }, [key]);
+  const key = JSON.stringify([ink, tones, palette, screen, light]);
+  useEffect(() => { handle.current && handle.current.set({ ink, tones, palette, screen, light }); }, [key]);
   return createElement("div", { ref: wrap, className, style });
 }
 

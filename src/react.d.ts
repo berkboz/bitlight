@@ -7,6 +7,8 @@ export interface BitlightProps {
   cell?: number;
   theme?: "auto" | "light" | "dark";
   ink?: Partial<Ink>;
+  tones?: number;
+  palette?: string[];
   screen?: ScreenName;
   light?: Partial<LightOptions>;
   label?: string;

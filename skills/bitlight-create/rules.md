@@ -7,7 +7,7 @@ checker fails you; "eyes" means only the frame sheet will tell.
 ### 01 · Two inks
 Paper and ink. Any two colours (a figure never names its own; the page picks
 them, see `docs/CONTROLS.md`), but no grey, no alpha, no anti-aliasing, no third
-colour for an accent. *Satisfy:* nothing to do — tone comes from dot density. *Enforced:*
+colour for an accent. *Satisfy:* nothing to do — tone comes from dot density. (Pages may opt into 4, 8 or 16 tones; figures are built and checked at 2.) *Enforced:*
 kernel + look.mjs (counts colours, fails at three).
 
 ### 02 · One light

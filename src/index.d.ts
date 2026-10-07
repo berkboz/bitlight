@@ -25,6 +25,10 @@ export interface MountOptions {
   theme?: "auto" | "light" | "dark";
   /** The two colours. Default: the CSS custom properties, else paper and ink. */
   ink?: Partial<Ink>;
+  /** Number of inks, 2–16, stepped from unlit to lit. Default 2. */
+  tones?: number;
+  /** CSS colours, darkest first; sets the inks and their number exactly. Overrides `tones`. */
+  palette?: string[];
   /** Dither screen. Default "bayer". */
   screen?: ScreenName;
   /** The lamp. Defaults are LOOK. */
@@ -45,9 +49,9 @@ export interface FigureHandle {
   /** Re-read --bitlight-lit / --bitlight-unlit, optionally switching theme. */
   retheme(theme?: "auto" | "light" | "dark"): void;
   /** Change ink, screen or light in place (no re-march). Any part may be left out. */
-  set(next: { ink?: Partial<Ink>; screen?: ScreenName; light?: Partial<LightOptions> }): void;
+  set(next: { ink?: Partial<Ink>; tones?: number; palette?: string[] | null; screen?: ScreenName; light?: Partial<LightOptions> }): void;
   /** The live settings. */
-  readonly options: { ink: Partial<Ink>; screen: ScreenName; light: LightOptions };
+  readonly options: { ink: Partial<Ink>; tones: number; palette: string[] | null; screen: ScreenName; light: LightOptions };
   readonly stats: { marchMs: number; renderMs: number; cols: number; rows: number; read: string };
   destroy(): void;
 }

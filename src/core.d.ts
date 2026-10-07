@@ -23,3 +23,5 @@ export function dither(lum: Float32Array, depth: Float32Array, W: V, H: V, bits:
 export function camera(yaw: V, pitch: V): { f: [V, V, V]; r: [V, V, V]; u: [V, V, V] };
 export function march(map: Field, ox: V, oy: V, oz: V, fx: V, fy: V, fz: V, maxT?: V, steps?: V): V;
 export function lampAngles(p: [V, V, V], target?: [V, V, V]): { az: V; el: V };
+export function ditherLevels(lum: Float32Array, depth: Float32Array | null, W: number, H: number, out: Uint8Array, stride: number, x0: number, y0: number, ground: number, haloLight?: number, screen?: Float32Array, levels?: number): void;
+export function ramp(unlit: number[], lit: number[], levels: number): number[][];

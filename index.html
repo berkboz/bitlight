@@ -120,7 +120,7 @@
 <body>
 <div class="wrap">
   <div class="bar">
-    <span>Bitlight 0.1 · 22 figures · MIT · <a href="https://github.com/berkboz/bitlight">GitHub</a></span>
+    <span>Bitlight 0.1 · 22 figures · MIT · <a href="https://github.com/berkboz/bitlight">GitHub</a> · <a href="photo.html">Photo &amp; video</a></span>
     <div class="seg" role="group" aria-label="Ground">
       <button type="button" id="t-light" data-theme-set="light">Paper</button>
       <button type="button" id="t-dark" data-theme-set="dark">Night</button>
@@ -143,6 +143,9 @@
         </div>
         <div class="lab-row"><span class="k">Screen</span>
           <div class="chips" id="screens" role="group" aria-label="Dither screen"></div>
+        </div>
+        <div class="lab-row"><span class="k">Tones</span>
+          <div class="chips" id="tones" role="group" aria-label="Number of inks"></div>
         </div>
         <div class="lab-row"><span class="k">Lamp</span>
           <div style="display:grid;gap:12px">
@@ -283,7 +286,8 @@ export default define({
       { id: "dusk", name: "Dusk", ink: { lit: "#ffe3b3", unlit: "#5b1a4a" }, dark: false },
     ];
     const SCREEN_NAMES = [["bayer", "Bayer 8"], ["bayer4", "Bayer 4"], ["dots", "Dots"], ["lines", "Lines"], ["diagonal", "Diagonal"], ["noise", "Grain"]];
-    const lab = { preset: "paper", ink: null, screen: "bayer", light: { ...DEFAULT_LIGHT }, orbit: false };
+    const TONES = [[2, "1-bit · 2"], [4, "2-bit · 4"], [8, "3-bit · 8"], [16, "4-bit · 16"]];
+    const lab = { preset: "paper", ink: null, screen: "bayer", tones: 2, light: { ...DEFAULT_LIGHT }, orbit: false };
     const $ = (id) => document.getElementById(id);
 
     // integer dot size only: the largest that fits, at most the one asked for
@@ -294,7 +298,7 @@ export default define({
       const host = document.getElementById("hero");
       host.replaceChildren();
       const def = B.all[state.fig];
-      hero = B.mount(host, def, { cell: fitCell(host, state.cell + 1), theme: effectiveTheme(), screen: lab.screen, light: lab.light, onRead: (t) => { document.getElementById("hero-read").textContent = t; } });
+      hero = B.mount(host, def, { cell: fitCell(host, state.cell + 1), theme: effectiveTheme(), screen: lab.screen, tones: lab.tones, light: lab.light, onRead: (t) => { document.getElementById("hero-read").textContent = t; } });
       document.getElementById("hero-name").textContent = def.name;
       renderSnippet();
       sync();
@@ -312,7 +316,7 @@ export default define({
         card.className = "card"; ro.className = "readout";
         title.textContent = def.name; means.textContent = def.means;
         ro.append(title, read); card.append(host, ro, means); (SCENES.includes(n) ? sbox : box).append(card);
-        gallery.push(B.mount(host, def, { cell: 2, theme: effectiveTheme(), screen: lab.screen, onRead: (t) => { read.textContent = t; } }));
+        gallery.push(B.mount(host, def, { cell: 2, theme: effectiveTheme(), screen: lab.screen, tones: lab.tones, onRead: (t) => { read.textContent = t; } }));
       }
     }
 
@@ -321,6 +325,7 @@ export default define({
       const o = {};
       if (lab.ink) o.ink = `{ lit: "${lab.ink.lit}", unlit: "${lab.ink.unlit}" }`;
       if (lab.screen !== "bayer") o.screen = `"${lab.screen}"`;
+      if (lab.tones !== 2) o.tones = String(lab.tones);
       const l = Object.entries(lab.light).filter(([k, v]) => v !== DEFAULT_LIGHT[k]).map(([k, v]) => `${k}: ${v}`);
       if (l.length) o.light = `{ ${l.join(", ")} }`;
       return o;
@@ -398,6 +403,11 @@ export default define({
       b.addEventListener("click", () => { lab.screen = id; hero && hero.set({ screen: id }); gallery.forEach((g) => g.set({ screen: id })); labSync(); renderSnippet(); });
       $("screens").append(b);
     }
+    for (const [n, label] of TONES) {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.tones = n; b.textContent = label;
+      b.addEventListener("click", () => { lab.tones = n; hero && hero.set({ tones: n }); gallery.forEach((g) => g.set({ tones: n })); labSync(); renderSnippet(); });
+      $("tones").append(b);
+    }
     const pickInk = () => { lab.preset = "custom"; lab.ink = { lit: $("ink-lit").value, unlit: $("ink-unlit").value }; applyInk(); labSync(); };
     $("ink-lit").addEventListener("input", pickInk); $("ink-unlit").addEventListener("input", pickInk);
     const SLIDERS = ["power", "falloff", "ambient", "contrast"];
@@ -407,13 +417,14 @@ export default define({
     function labSync() {
       document.querySelectorAll("[data-preset]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === lab.preset)));
       document.querySelectorAll("[data-screen]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.screen === lab.screen)));
+      document.querySelectorAll("[data-tones]").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.tones === lab.tones)));
       document.querySelectorAll("[data-spot]").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.spot === "true") === lab.light.spot)));
       $("lamp-orbit").setAttribute("aria-pressed", String(lab.orbit));
       for (const k of SLIDERS) { $(`s-${k}`).value = lab.light[k]; $(`o-${k}`).textContent = fmt(k, lab.light[k]); }
     }
     $("lab-reset").addEventListener("click", () => {
-      Object.assign(lab, { screen: "bayer", light: { ...DEFAULT_LIGHT } });
-      hero && hero.set({ screen: "bayer", light: DEFAULT_LIGHT }); gallery.forEach((g) => g.set({ screen: "bayer" }));
+      Object.assign(lab, { screen: "bayer", tones: 2, light: { ...DEFAULT_LIGHT } });
+      hero && hero.set({ screen: "bayer", tones: 2, light: DEFAULT_LIGHT }); gallery.forEach((g) => g.set({ screen: "bayer", tones: 2 }));
       setPreset(effectiveTheme() === "dark" ? "night" : "paper"); setOrbit(false);
     });
 

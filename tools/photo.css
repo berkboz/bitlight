@@ -1,0 +1,18 @@
+.ph { display: grid; gap: 1rem; }
+.drop { position: relative; display: grid; place-items: center; min-height: 320px; border: 1px dashed var(--pc-line); border-radius: 1.1rem; background: var(--pc-bg); overflow: hidden; cursor: pointer; transition: border-color .2s; }
+.drop[data-over] { border-color: var(--pc-accent); border-style: solid; }
+.drop canvas { display: block; width: 100%; max-height: 78vh; object-fit: contain; image-rendering: pixelated; }
+.hint { position: absolute; inset: 0; display: grid; place-content: center; gap: .7rem; text-align: center; color: var(--pc-text); padding: 1rem; }
+.hint[hidden] { display: none; } .hint small { color: var(--pc-mute); } .hint .row-btn { display: inline-flex; gap: .5rem; justify-content: center; flex-wrap: wrap; }
+.bar2 { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; } .note { color: var(--pc-mute); font-size: .85rem; }
+.panel { display: grid; gap: 1rem; padding: 1.1rem; border: 1px solid var(--pc-line); border-radius: 1.1rem; background: var(--pc-panel); }
+.r { display: grid; grid-template-columns: 5.5rem minmax(0,1fr); gap: .8rem; align-items: start; } @media (max-width: 700px) { .r { grid-template-columns: minmax(0,1fr); gap: .4rem; } }
+.r > .k { padding-top: .5rem; color: var(--pc-mute); font: 500 .74rem/1 ui-monospace, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip { display: inline-flex; align-items: center; gap: .45rem; padding: .42rem .7rem; border: 1px solid var(--pc-line); border-radius: .6rem; background: transparent; color: var(--pc-chip); font: 620 .82rem/1.1 system-ui, sans-serif; cursor: pointer; }
+.chip:hover:not(:disabled) { color: var(--pc-text); border-color: var(--pc-mute); } .chip:disabled { opacity: .4; cursor: default; }
+.chip[aria-pressed="true"] { border-color: var(--pc-accent); background: var(--pc-accent); color: var(--pc-on); }
+.chip .sw { width: .85rem; height: .85rem; border: 1px solid rgba(128,128,128,.5); border-radius: 50%; }
+.sliders { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .9rem 1.5rem; } @media (max-width: 700px) { .sliders { grid-template-columns: minmax(0,1fr); } }
+.sl { display: grid; gap: .35rem; color: var(--pc-mute); font: 500 .74rem/1 ui-monospace, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; } .sl span { display: flex; justify-content: space-between; } .sl output { color: var(--pc-text); }
+input[type=range] { width: 100%; margin: 0; accent-color: var(--pc-accent); }

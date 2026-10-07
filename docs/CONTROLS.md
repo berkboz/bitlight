@@ -1,12 +1,13 @@
-# Controls: ink, screen, lamp
+# Controls: ink, tones, screen, lamp
 
-Bitlight has three things you can change without touching a figure. They are the
+Bitlight has four things you can change without touching a figure. They are the
 whole of the "look" knobs; everything else is fixed on purpose (see
 [the ten rules](../skills/bitlight-create/rules.md)).
 
 | Knob | What it changes | Option | Live | Default |
 |---|---|---|---|---|
 | **Ink** | the two colours | `ink: { lit, unlit }` or `--bitlight-lit` / `--bitlight-unlit` | `handle.set({ ink })` | paper `#e4e6df` / ink `#121411` (night swaps the ground) |
+| **Tones** | how many inks, 2 to 16, stepped from `unlit` to `lit` (or an exact `palette`) | `tones: 2 \| 4 \| 8 \| 16`, `palette: [css colours, darkest first]` | `handle.set({ tones, palette })` | `2` |
 | **Screen** | the order dots switch on, i.e. the texture of the shading | `screen: "bayer" \| "bayer4" \| "dots" \| "lines" \| "diagonal" \| "noise"` | `handle.set({ screen })` | `bayer` |
 | **Lamp** | how the one light behaves | `light: { power, falloff, ambient, contrast, spot }` | `handle.set({ light })` | `LOOK` values |
 
@@ -41,6 +42,26 @@ Precedence: `ink` option, then the CSS custom properties on the host or any
 ancestor, then the paper/night defaults. Scoping the custom properties to a
 wrapper recolours every figure inside it and nothing else, which is how
 brk.bz/bitlight keeps its page chrome in the site's own colours.
+
+## Tones
+
+`tones: 2` is the house look: one bit, two inks. Raise it and each cell lands on
+the nearest of N inks, dithered between its two neighbouring tones with the same
+fixed screen, so shading still holds still.
+
+| `tones` | Reads as | Notes |
+|---|---|---|
+| 2 | 1-bit | the default; every rule and every shipped figure is tuned for it |
+| 4 | 2-bit | the sweet spot: Game Boy, CGA, early Mac. Colour palettes shine here |
+| 8 | 3-bit | still visibly dithered, smoother falloff |
+| 16 | 4-bit | the dither is nearly invisible; use for photographs |
+
+More than 16 is refused on purpose: at 256 inks it is just a render. `palette`
+sets the inks exactly (and their number), for example a four-colour Game Boy:
+`palette: ["#0f380f", "#306230", "#8bac0f", "#9bbc0f"]`.
+
+Figures are designed and checked at 2 tones (`look.mjs` counts two colours). At
+higher tones the picture is the same light, with more steps in it.
 
 ## Screen
 
@@ -90,6 +111,9 @@ film and a page with default settings cannot drift apart.
 ## Plan
 
 Done in 0.2:
+
+- [x] `tones` / `palette`: 2 to 16 ordered inks
+- [x] Photographs, video and camera through the same screens (`src/image.js`, `bitlight.mjs`, `photo.html`)
 
 - [x] Ink as a first-class option, CSS-variable scoping, `set()` and `options`
 - [x] Six ordered screens, `SCREENS` export

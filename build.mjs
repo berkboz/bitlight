@@ -39,7 +39,7 @@ const bundle = await build({
 write(at("dist/bitlight.global.js"), bundle.outputFiles[0].text);
 
 // 3 · shadcn registry item: the library files, so `npx shadcn add <url>` vendors them
-const files = ["core.js", "props.js", "bitlight.js", "react.js", "figures/index.js", ...names.map((n) => `figures/${n}.js`)];
+const files = ["core.js", "image.js", "props.js", "bitlight.js", "react.js", "figures/index.js", ...names.map((n) => `figures/${n}.js`)];
 const registry = {
   $schema: "https://ui.shadcn.com/schema/registry-item.json",
   name: "bitlight",

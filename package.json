@@ -39,6 +39,10 @@
     "./props": {
       "types": "./src/props.d.ts",
       "default": "./src/props.js"
+    },
+    "./image": {
+      "types": "./src/image.d.ts",
+      "default": "./src/image.js"
     }
   },
   "files": [

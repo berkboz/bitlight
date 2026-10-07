@@ -211,6 +211,39 @@ export function dither(lum, depth, W, H, bits, stride, x0, y0, ground, haloLight
   }
 }
 
+/**
+ * The same ordering for more than two inks. `levels` = number of tones (2–16);
+ * each cell lands on one of 0 … levels−1, dithered between its two nearest tones
+ * with the same fixed screen, so shading still holds still. Misses paint `ground`
+ * (a level, 0 or levels−1). The halo paints the top level.
+ */
+export function ditherLevels(lum, depth, W, H, out, stride, x0, y0, ground, haloLight = 0, screen = BAYER, levels = 4) {
+  const D = LOOK.HALO_DEPTH, HL = haloLight, top = levels - 1;
+  for (let j = 0, k = 0; j < H; j++) {
+    const row = ((y0 + j) & 7) * 8, o = (y0 + j) * stride + x0;
+    for (let i = 0; i < W; i++, k++) {
+      const L = lum[k];
+      if (L < 0) { out[o + i] = ground; continue; }
+      const d = depth ? depth[k] : 0;
+      let near = -1;
+      if (depth) {
+        if (i > 0 && d - depth[k - 1] > D) near = max(near, lum[k - 1]);
+        if (i < W - 1 && d - depth[k + 1] > D) near = max(near, lum[k + 1]);
+        if (j > 0 && d - depth[k - W] > D) near = max(near, lum[k - W]);
+        if (j < H - 1 && d - depth[k + W] > D) near = max(near, lum[k + W]);
+      }
+      if (near > -1 && (HL <= 0 || max(near, L) > HL)) { out[o + i] = top; continue; }
+      const v = (L < 0 ? 0 : L > 1 ? 1 : L) * top, base = Math.floor(v);
+      out[o + i] = min(top, base + (v - base > screen[row + ((x0 + i) & 7)] ? 1 : 0));
+    }
+  }
+}
+
+/** `levels` colours stepping from `unlit` to `lit` ([r, g, b] 0–255 each). */
+export function ramp(unlit, lit, levels) {
+  return Array.from({ length: levels }, (_, i) => unlit.map((u, c) => Math.round(u + (lit[c] - u) * (i / (levels - 1)))));
+}
+
 // ---------- camera ----------
 // Orthographic camera: yaw/pitch in degrees, `half` = half the visible width in
 // world units. Returns the ray basis used by both engines.

@@ -38,6 +38,26 @@ for (const n of ["dots", "lines", "diagonal", "noise"]) {
   ok(sorted.every((v, i) => Math.abs(v - (i + 0.5) / 64) < 1e-6), `screen "${n}" is a rank order (every level used once, so density maps linearly to coverage)`);
 }
 
+// 1c · image module: the same screens on photographs
+const img = await import("../src/image.js");
+{
+  const W = 64, H = 8, ramp1 = new Float32Array(W * H);
+  for (let k = 0; k < ramp1.length; k++) ramp1[k] = (k % W) / (W - 1);
+  const cover = (levels, n) => Array.from(levels).reduce((a, v) => a + v, 0) / ((n - 1) * levels.length);
+  const two = img.dither(ramp1, W, H, { tones: 2 }), four = img.dither(ramp1, W, H, { tones: 4 });
+  ok(Math.abs(cover(two, 2) - 0.5) < 0.04 && Math.abs(cover(four, 4) - 0.5) < 0.04, "image: a 0→1 ramp lands at half coverage for 2 and 4 tones");
+  ok(new Set(four).size === 4 && new Set(two).size === 2, "image: tones=N uses exactly N levels on a full ramp");
+  ok(Array.from(img.dither(ramp1, W, H, { tones: 8, screen: "dots" })).every((v) => v >= 0 && v < 8), "image: levels stay in range under every screen");
+  const a = img.dither(ramp1, W, H, { tones: 4 }), b = img.dither(ramp1, W, H, { tones: 4 });
+  ok(Array.from(a).join() === Array.from(b).join(), "image: the same input gives the same dots (nothing random, nothing diffused)");
+  const g = img.toGrid(new Float32Array(100 * 50).fill(0.25), 100, 50, 20);
+  ok(g.W === 20 && g.H === 10 && g.lum.every((v) => Math.abs(v - 0.25) < 1e-6), "image: toGrid keeps aspect and averages exactly");
+  const flat = img.tune(Float32Array.from({ length: 1000 }, (_, i) => 0.4 + 0.2 * (i / 999)), 100, 10, { auto: true });
+  ok(Math.min(...flat) < 0.05 && Math.max(...flat) > 0.95, "image: auto levels stretch a flat picture to the full range");
+  const px = img.paint(new Uint8Array([0, 1]), 2, 1, [[0, 0, 0], [255, 0, 0]], 2);
+  ok(px.length === 32, "image: paint scales each dot by the cell size");
+}
+
 // 2 · types compile
 try {
   execFileSync(path.join(root, "node_modules/.bin/tsc"), ["--noEmit", "--strict", "--skipLibCheck", "--target", "es2020", "--module", "esnext",
@@ -101,6 +121,16 @@ ok(live.inkColours === 2 && live.inkHasLit, "set({ ink }) paints exactly the two
 ok(live.brighter, "set({ light: { power } }) re-lights without re-marching");
 ok(live.screenChanges && live.stillTwo && live.spotTwo, "screen and spot lamp change the picture and stay two-ink");
 ok(live.options === '"dots"#f04820true' && live.throws, "options reflects the live settings; an unknown screen throws");
+const tn = await page.evaluate(() => {
+  const B = window.Bitlight, host = document.createElement("div"); document.body.append(host);
+  const h = B.mount(host, B.all.sundial, { cell: 1, theme: "dark", ink: { lit: "#ff0000", unlit: "#000000" }, tones: 4 }), cv = host.querySelector("canvas");
+  const n = () => { const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data, set = new Set(); for (let i = 0; i < d.length; i += 4) set.add(d[i]); return set; };
+  const out = { four: n().size, red: [...n()].every((v) => [0, 85, 170, 255].includes(v)) };
+  h.set({ palette: ["#000000", "#0000ff", "#00ffff"] }); out.pal = h.options.tones;
+  h.set({ tones: 2, palette: null }); out.two = n().size; h.destroy(); host.remove(); return out;
+});
+ok(tn.four === 4 && tn.red, "tones: 4 paints four evenly stepped inks");
+ok(tn.pal === 3 && tn.two === 2, "palette sets its own number of inks; tones: 2 returns to two");
 const r = await page.evaluate(() => {
   window.mountReact("orb");
   const mounted = document.querySelectorAll("#app canvas").length;
