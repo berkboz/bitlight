@@ -66,6 +66,25 @@
   .code .tabs button[aria-selected="true"] { background: var(--ink); color: var(--paper); }
   .code .tabs .copy { margin-left: auto; border-right: 0; border-left: 1px solid var(--ink); }
   pre { margin: 0; padding: 16px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; }
+
+  .lab { display: grid; gap: 16px; border-top: 1px solid var(--rule); padding-top: 16px; margin-top: 8px; }
+  .lab h3 { font: 500 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; margin: 0; display: flex; justify-content: space-between; gap: 12px; }
+  .lab h3 button { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+  .lab-row { display: grid; grid-template-columns: 7ch minmax(0, 1fr); gap: 12px; align-items: start; }
+  .lab-row > .k { padding-top: 9px; }
+  .lab-row > label, .lab-row > span.k { font: 500 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .swatch { display: inline-flex; align-items: center; gap: 8px; font: 400 12px/1 var(--mono); }
+  .swatch input { width: 36px; height: 28px; padding: 0; border: 1px solid var(--ink); background: none; cursor: pointer; }
+  .inks { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .chips .dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border: 1px solid currentColor; vertical-align: -1px; }
+  .sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; }
+  @media (max-width: 600px) { .sliders { grid-template-columns: minmax(0, 1fr); } }
+  .sl { display: grid; gap: 4px; font: 500 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .sl span { display: flex; justify-content: space-between; }
+  .sl output { color: var(--ink); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--ink); margin: 0; }
+  .ratio { font: 400 12px/1.3 var(--mono); color: var(--muted); }
+  .ratio[data-low="true"] { color: var(--ink); text-decoration: underline wavy; }
   .hint { font: 400 12px/1.5 var(--mono); color: var(--muted); margin: 0; }
   kbd { border: 1px solid var(--muted); padding: 0 4px; font-size: 11px; }
 
@@ -112,6 +131,35 @@
     <div class="stage">
       <div id="hero"></div>
       <div class="readout"><b id="hero-name">Sundial</b><span id="hero-read" aria-live="polite"></span></div>
+      <div class="lab" id="lab">
+        <h3><span>Lab</span><button type="button" id="lab-reset">Reset</button></h3>
+        <div class="lab-row"><span class="k">Ink</span>
+          <div class="inks">
+            <div class="chips" id="inks" role="group" aria-label="Ink presets"></div>
+            <label class="swatch"><input type="color" id="ink-lit" value="#e4e6df" aria-label="Lit ink (paper)" /> lit</label>
+            <label class="swatch"><input type="color" id="ink-unlit" value="#121411" aria-label="Unlit ink" /> unlit</label>
+            <span class="ratio" id="ratio" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="lab-row"><span class="k">Screen</span>
+          <div class="chips" id="screens" role="group" aria-label="Dither screen"></div>
+        </div>
+        <div class="lab-row"><span class="k">Lamp</span>
+          <div style="display:grid;gap:12px">
+            <div class="chips" role="group" aria-label="Lamp type">
+              <button type="button" id="lamp-point" data-spot="false">Point</button>
+              <button type="button" id="lamp-spot" data-spot="true">Spot</button>
+              <button type="button" id="lamp-orbit">Orbit</button>
+            </div>
+            <div class="sliders">
+              <label class="sl"><span>Power <output id="o-power"></output></span><input type="range" id="s-power" min="0.8" max="5" step="0.05" /></label>
+              <label class="sl"><span>Spread <output id="o-falloff"></output></span><input type="range" id="s-falloff" min="0.05" max="1.2" step="0.01" /></label>
+              <label class="sl"><span>Ambient <output id="o-ambient"></output></span><input type="range" id="s-ambient" min="0" max="0.3" step="0.005" /></label>
+              <label class="sl"><span>Contrast <output id="o-contrast"></output></span><input type="range" id="s-contrast" min="0.4" max="1.3" step="0.01" /></label>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div>
       <h1>Bitlight</h1>
@@ -222,6 +270,22 @@ export default define({
     if (!B.all[state.fig]) state.fig = "sundial";
     let hero = null, gallery = [];
 
+    // ---- Lab: ink, screen, lamp. Ink is page-wide (CSS variables); screen goes to every figure; lamp to the hero ----
+    const DEFAULT_LIGHT = { power: 2.4, falloff: 0.32, ambient: 0.035, contrast: 0.72, spot: false };
+    const PRESETS = [
+      { id: "paper", name: "Paper", ink: null, dark: false },
+      { id: "night", name: "Night", ink: null, dark: true },
+      { id: "amber", name: "Amber", ink: { lit: "#ffb000", unlit: "#1d1000" }, dark: true },
+      { id: "phosphor", name: "Phosphor", ink: { lit: "#7dff9a", unlit: "#041208" }, dark: true },
+      { id: "blueprint", name: "Blueprint", ink: { lit: "#e8f1ff", unlit: "#0b2a6b" }, dark: true },
+      { id: "riso", name: "Riso", ink: { lit: "#f4ecd8", unlit: "#e0412b" }, dark: false },
+      { id: "gameboy", name: "Gameboy", ink: { lit: "#9bbc0f", unlit: "#0f380f" }, dark: false },
+      { id: "dusk", name: "Dusk", ink: { lit: "#ffe3b3", unlit: "#5b1a4a" }, dark: false },
+    ];
+    const SCREEN_NAMES = [["bayer", "Bayer 8"], ["bayer4", "Bayer 4"], ["dots", "Dots"], ["lines", "Lines"], ["diagonal", "Diagonal"], ["noise", "Grain"]];
+    const lab = { preset: "paper", ink: null, screen: "bayer", light: { ...DEFAULT_LIGHT }, orbit: false };
+    const $ = (id) => document.getElementById(id);
+
     // integer dot size only: the largest that fits, at most the one asked for
     const fitCell = (host, want) => Math.max(2, Math.min(want, Math.floor((host.clientWidth || 480) / 160) || 2));
 
@@ -230,7 +294,7 @@ export default define({
       const host = document.getElementById("hero");
       host.replaceChildren();
       const def = B.all[state.fig];
-      hero = B.mount(host, def, { cell: fitCell(host, state.cell + 1), theme: effectiveTheme(), onRead: (t) => { document.getElementById("hero-read").textContent = t; } });
+      hero = B.mount(host, def, { cell: fitCell(host, state.cell + 1), theme: effectiveTheme(), screen: lab.screen, light: lab.light, onRead: (t) => { document.getElementById("hero-read").textContent = t; } });
       document.getElementById("hero-name").textContent = def.name;
       renderSnippet();
       sync();
@@ -248,17 +312,29 @@ export default define({
         card.className = "card"; ro.className = "readout";
         title.textContent = def.name; means.textContent = def.means;
         ro.append(title, read); card.append(host, ro, means); (SCENES.includes(n) ? sbox : box).append(card);
-        gallery.push(B.mount(host, def, { cell: 2, theme: effectiveTheme(), onRead: (t) => { read.textContent = t; } }));
+        gallery.push(B.mount(host, def, { cell: 2, theme: effectiveTheme(), screen: lab.screen, onRead: (t) => { read.textContent = t; } }));
       }
     }
 
-    const SNIPPETS = {
-      module: (f, c) => `npm i github:berkboz/bitlight\n\nimport { mount, ${f} } from "bitlight";\n\nmount(document.getElementById("figure"), ${f}, {\n  cell: ${c},          // CSS px per dot\n  theme: "auto",    // paper or night, follows the OS\n  onRead: (text) => console.log(text),\n});`,
-      react: (f, c) => `npm i github:berkboz/bitlight\n\nimport { Bitlight } from "bitlight/react";\nimport { ${f} } from "bitlight";\n\nexport function Hero() {\n  const [caption, setCaption] = useState("");\n  return <Bitlight figure={${f}} cell={${c}} onRead={setCaption} />;\n}`,
-      script: (f, c) => `<div id="figure"></div>\n<script src="https://cdn.jsdelivr.net/gh/berkboz/bitlight/dist/bitlight.global.js"><\/script>\n<script>\n  Bitlight.mount(document.getElementById("figure"), "${f}", { cell: ${c} });\n<\/script>`,
-      shadcn: (f, c) => `# vendors the library into lib/bitlight\nnpx shadcn@latest add https://berkboz.github.io/bitlight/registry/bitlight.json\n\nimport { mount } from "@/lib/bitlight/bitlight";\nimport ${f} from "@/lib/bitlight/figures/${f}";\n\nmount(el, ${f}, { cell: ${c} });`,
+    // what the Lab changed, as option lines for each snippet
+    const labOptions = () => {
+      const o = {};
+      if (lab.ink) o.ink = `{ lit: "${lab.ink.lit}", unlit: "${lab.ink.unlit}" }`;
+      if (lab.screen !== "bayer") o.screen = `"${lab.screen}"`;
+      const l = Object.entries(lab.light).filter(([k, v]) => v !== DEFAULT_LIGHT[k]).map(([k, v]) => `${k}: ${v}`);
+      if (l.length) o.light = `{ ${l.join(", ")} }`;
+      return o;
     };
-    const renderSnippet = () => { document.getElementById("snippet").textContent = SNIPPETS[state.tab](state.fig, state.cell); };
+    const objLines = (o) => Object.entries(o).map(([k, v]) => `  ${k}: ${v},\n`).join("");
+    const propsOf = (o) => Object.entries(o).map(([k, v]) => ` ${k}={${v.startsWith("\"") ? v : `${v}`}}`).join("");
+    const inlineOf = (o) => Object.entries(o).map(([k, v]) => `, ${k}: ${v}`).join("");
+    const SNIPPETS = {
+      module: (f, c, o) => `npm i github:berkboz/bitlight\n\nimport { mount, ${f} } from "bitlight";\n\nmount(document.getElementById("figure"), ${f}, {\n  cell: ${c},          // CSS px per dot\n  theme: "auto",    // paper or night, follows the OS\n${objLines(o)}  onRead: (text) => console.log(text),\n});`,
+      react: (f, c, o) => `npm i github:berkboz/bitlight\n\nimport { Bitlight } from "bitlight/react";\nimport { ${f} } from "bitlight";\n\nexport function Hero() {\n  const [caption, setCaption] = useState("");\n  return <Bitlight figure={${f}} cell={${c}}${propsOf(o)} onRead={setCaption} />;\n}`,
+      script: (f, c, o) => `<div id="figure"></div>\n<script src="https://cdn.jsdelivr.net/gh/berkboz/bitlight/dist/bitlight.global.js"><\/script>\n<script>\n  Bitlight.mount(document.getElementById("figure"), "${f}", { cell: ${c}${inlineOf(o)} });\n<\/script>`,
+      shadcn: (f, c, o) => `# vendors the library into lib/bitlight\nnpx shadcn@latest add https://berkboz.github.io/bitlight/registry/bitlight.json\n\nimport { mount } from "@/lib/bitlight/bitlight";\nimport ${f} from "@/lib/bitlight/figures/${f}";\n\nmount(el, ${f}, {\n  cell: ${c},\n${objLines(o)}});`,
+    };
+    const renderSnippet = () => { $("snippet").textContent = SNIPPETS[state.tab](state.fig, state.cell, labOptions()); };
 
     function sync() {
       const theme = effectiveTheme();
@@ -280,8 +356,82 @@ export default define({
     document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => { root.dataset.theme = b.dataset.themeSet; }));
     // tokens change with the theme; let them apply before the figures read them
     const retheme = () => requestAnimationFrame(() => { const t = effectiveTheme(); hero && hero.retheme(t); gallery.forEach((g) => g.retheme(t)); sync(); });
-    new MutationObserver(retheme).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    new MutationObserver(() => (lab.ink ? applyInk() : retheme())).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
     mq.addEventListener("change", () => { if (!root.dataset.theme) retheme(); });
+
+    // ---- Lab wiring ----
+    const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+    const lumOf = (c) => { const [r, g, b] = hex(c).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const ratioOf = (a, b) => { const x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const INK_VARS = ["--bitlight-lit", "--bitlight-unlit", "--paper", "--ink", "--muted", "--rule"];
+    function applyInk() {
+      const ink = lab.ink;
+      if (!ink) INK_VARS.forEach((v) => root.style.removeProperty(v));
+      else {
+        const dark = effectiveTheme() === "dark", bg = dark ? ink.unlit : ink.lit, fg = dark ? ink.lit : ink.unlit;
+        root.style.setProperty("--bitlight-lit", ink.lit); root.style.setProperty("--bitlight-unlit", ink.unlit);
+        root.style.setProperty("--paper", bg); root.style.setProperty("--ink", fg);
+        root.style.setProperty("--muted", `color-mix(in srgb, ${fg} 62%, ${bg})`);
+        root.style.setProperty("--rule", `color-mix(in srgb, ${fg} 24%, ${bg})`);
+      }
+      const lit = ink ? ink.lit : getComputedStyle(root).getPropertyValue("--bitlight-lit").trim(), unlit = ink ? ink.unlit : getComputedStyle(root).getPropertyValue("--bitlight-unlit").trim();
+      if (/^#[0-9a-f]{6}$/i.test(lit) && /^#[0-9a-f]{6}$/i.test(unlit)) {
+        $("ink-lit").value = lit; $("ink-unlit").value = unlit;
+        const r = ratioOf(lit, unlit), el = $("ratio");
+        el.textContent = `${r.toFixed(1)}:1${r < 3 ? " · too close, shapes will sink" : ""}`; el.dataset.low = String(r < 3);
+      }
+      retheme(); renderSnippet();
+    }
+    function setPreset(id) {
+      const p = PRESETS.find((x) => x.id === id); lab.preset = id; lab.ink = p.ink ? { ...p.ink } : null;
+      root.dataset.theme = p.dark ? "dark" : "light"; // the ground: night paints misses unlit
+      applyInk(); labSync();
+    }
+    for (const p of PRESETS) {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.preset = p.id;
+      const sw = document.createElement("i"); sw.className = "dot";
+      sw.style.background = p.ink ? p.ink.lit : p.dark ? "#d9dcd2" : "#e4e6df"; sw.style.color = p.ink ? p.ink.unlit : p.dark ? "#d9dcd2" : "#121411";
+      b.append(sw, p.name); b.addEventListener("click", () => setPreset(p.id)); $("inks").append(b);
+    }
+    for (const [id, label] of SCREEN_NAMES) {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.screen = id; b.textContent = label;
+      b.addEventListener("click", () => { lab.screen = id; hero && hero.set({ screen: id }); gallery.forEach((g) => g.set({ screen: id })); labSync(); renderSnippet(); });
+      $("screens").append(b);
+    }
+    const pickInk = () => { lab.preset = "custom"; lab.ink = { lit: $("ink-lit").value, unlit: $("ink-unlit").value }; applyInk(); labSync(); };
+    $("ink-lit").addEventListener("input", pickInk); $("ink-unlit").addEventListener("input", pickInk);
+    const SLIDERS = ["power", "falloff", "ambient", "contrast"];
+    const fmt = (k, v) => (k === "ambient" ? v.toFixed(3) : v.toFixed(2));
+    for (const k of SLIDERS) $(`s-${k}`).addEventListener("input", (e) => { lab.light[k] = +e.target.value; hero && hero.set({ light: { [k]: lab.light[k] } }); labSync(); renderSnippet(); });
+    document.querySelectorAll("[data-spot]").forEach((b) => b.addEventListener("click", () => { lab.light.spot = b.dataset.spot === "true"; hero && hero.set({ light: { spot: lab.light.spot } }); labSync(); renderSnippet(); }));
+    function labSync() {
+      document.querySelectorAll("[data-preset]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === lab.preset)));
+      document.querySelectorAll("[data-screen]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.screen === lab.screen)));
+      document.querySelectorAll("[data-spot]").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.spot === "true") === lab.light.spot)));
+      $("lamp-orbit").setAttribute("aria-pressed", String(lab.orbit));
+      for (const k of SLIDERS) { $(`s-${k}`).value = lab.light[k]; $(`o-${k}`).textContent = fmt(k, lab.light[k]); }
+    }
+    $("lab-reset").addEventListener("click", () => {
+      Object.assign(lab, { screen: "bayer", light: { ...DEFAULT_LIGHT } });
+      hero && hero.set({ screen: "bayer", light: DEFAULT_LIGHT }); gallery.forEach((g) => g.set({ screen: "bayer" }));
+      setPreset(effectiveTheme() === "dark" ? "night" : "paper"); setOrbit(false);
+    });
+
+    // the lamp circles on its own until the pointer arrives
+    let orbitRaf = 0, orbitT = 0, orbitPaused = false, orbitLast = 0;
+    function orbitTick(now) {
+      const dt = Math.min(0.05, (now - orbitLast) / 1000); orbitLast = now;
+      if (lab.orbit && !orbitPaused && hero && !document.hidden) { orbitT += dt * 0.7; hero.lampAt(0.5 + 0.36 * Math.cos(orbitT), 0.52 + 0.3 * Math.sin(orbitT)); }
+      orbitRaf = lab.orbit ? requestAnimationFrame(orbitTick) : 0;
+    }
+    function setOrbit(on) {
+      lab.orbit = on; labSync();
+      if (on && !orbitRaf) { orbitLast = performance.now(); orbitRaf = requestAnimationFrame(orbitTick); }
+      if (!on && hero) hero.rest();
+    }
+    $("lamp-orbit").addEventListener("click", () => setOrbit(!lab.orbit));
+    $("hero").addEventListener("pointerenter", () => { orbitPaused = true; });
+    $("hero").addEventListener("pointerleave", () => { orbitPaused = false; });
 
     const copy = document.getElementById("copy");
     copy.addEventListener("click", () => {
@@ -299,6 +449,7 @@ export default define({
 
     mountHero();
     mountGallery();
+    labSync(); applyInk();
   })();
 </script>
 </body>

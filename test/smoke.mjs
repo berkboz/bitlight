@@ -29,6 +29,15 @@ for (const f of figs) {
   ok(contract && leak === 0, `${f.name}: contract complete, bound encloses the object${leak ? ` (${leak} points poke out)` : ""}`);
 }
 
+// 1b · screens: ordered threshold maps, all 8×8, all in (0, 1)
+const names = Object.keys(api.SCREENS);
+ok(names.length === 6 && names.every((n) => api.SCREENS[n].length === 64 && api.SCREENS[n].every((v) => v > 0 && v < 1)), `${names.length} screens, each 8×8 with thresholds in (0, 1)`);
+ok(new Set(names.map((n) => Array.from(api.SCREENS[n]).join())).size === names.length, "every screen is different");
+for (const n of ["dots", "lines", "diagonal", "noise"]) {
+  const sorted = Array.from(api.SCREENS[n]).sort((a, b) => a - b);
+  ok(sorted.every((v, i) => Math.abs(v - (i + 0.5) / 64) < 1e-6), `screen "${n}" is a rank order (every level used once, so density maps linearly to coverage)`);
+}
+
 // 2 · types compile
 try {
   execFileSync(path.join(root, "node_modules/.bin/tsc"), ["--noEmit", "--strict", "--skipLibCheck", "--target", "es2020", "--module", "esnext",
@@ -70,6 +79,28 @@ const g = await page.evaluate(() => {
 });
 ok(g.names === files.length && g.canvases === files.length && g.left === 0, `global bundle mounts and destroys all ${g.names} figures`);
 ok(/^shadow at \d+:\d\d$/.test(g.byName), `mount by registered name works ("${g.byName}")`);
+// live settings: ink, screen and lamp change in place and stay two-ink
+const live = await page.evaluate(() => {
+  const B = window.Bitlight, host = document.createElement("div"); document.body.append(host);
+  const h = B.mount(host, B.all.sundial, { cell: 1, theme: "dark" }), cv = host.querySelector("canvas"), px = () => cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+  const colours = () => { const d = px(), set = new Set(); for (let i = 0; i < d.length; i += 4) set.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]); return set; };
+  const lit = () => { const d = px(); let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 100) n++; return n; };
+  const out = {};
+  h.set({ ink: { lit: "#f04820", unlit: "#0f0f0f" } });
+  const c = colours(); out.inkColours = c.size; out.inkHasLit = c.has(0xf04820) && c.has(0x0f0f0f);
+  const before = lit(); h.set({ light: { power: 4.5 } }); out.brighter = lit() > before;
+  const base = Array.from(px()).join(); h.set({ screen: "dots" }); out.screenChanges = Array.from(px()).join() !== base;
+  out.stillTwo = colours().size === 2;
+  h.set({ light: { spot: true } }); out.spotTwo = colours().size === 2;
+  out.options = JSON.stringify(h.options.screen) + h.options.ink.lit + h.options.light.spot;
+  try { h.set({ screen: "nope" }); out.throws = false; } catch { out.throws = true; }
+  h.destroy(); host.remove();
+  return out;
+});
+ok(live.inkColours === 2 && live.inkHasLit, "set({ ink }) paints exactly the two chosen colours");
+ok(live.brighter, "set({ light: { power } }) re-lights without re-marching");
+ok(live.screenChanges && live.stillTwo && live.spotTwo, "screen and spot lamp change the picture and stay two-ink");
+ok(live.options === '"dots"#f04820true' && live.throws, "options reflects the live settings; an unknown screen throws");
 const r = await page.evaluate(() => {
   window.mountReact("orb");
   const mounted = document.querySelectorAll("#app canvas").length;

@@ -35,6 +35,38 @@ export const BAYER = (() => {
   return Float32Array.from(m.flat(), (v) => (v + 0.5) / 64);
 })();
 
+// ---------- screens ----------
+// Other ordered threshold maps, all 8×8 and tiled: a "screen" is only the order
+// in which dots switch on as light rises. Every one is fixed in the page, so the
+// shading still holds while the lamp moves (rules · 04 Order). Error diffusion is
+// not offered and never will be.
+export const SCREENS = (() => {
+  const rank = (score) => {
+    const idx = [...score.keys()].sort((a, b) => score[a] - score[b] || a - b);
+    const out = new Float32Array(64);
+    idx.forEach((k, i) => { out[k] = (i + 0.5) / 64; });
+    return out;
+  };
+  const cells = (fn) => Array.from({ length: 64 }, (_, k) => fn(k & 7, k >> 3));
+  const b4 = Float32Array.from(cells((x, y) => {
+    const m = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+    return (m[y & 3][x & 3] + 0.5) / 16;
+  }));
+  let seed = 7; // fixed seed: the same grain on every machine
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  return Object.freeze({
+    bayer: BAYER,
+    bayer4: b4,
+    // clustered dots: a lit dot grows from the middle of each 4×4 cell
+    dots: rank(cells((x, y) => (((x & 3) - 1.5) ** 2 + ((y & 3) - 1.5) ** 2) + BAYER[y * 8 + x] * 0.01)),
+    // horizontal and 45° line screens
+    lines: rank(cells((x, y) => Math.abs((y & 3) - 1.5) + BAYER[y * 8 + x] * 0.5)),
+    diagonal: rank(cells((x, y) => Math.abs(((x + y) & 3) - 1.5) + BAYER[y * 8 + x] * 0.5)),
+    // fixed grain
+    noise: rank(cells(() => rnd())),
+  });
+})();
+
 // ---------- signed distance helpers ----------
 const sqrt = Math.sqrt, abs = Math.abs, max = Math.max, min = Math.min;
 export const sd = {
@@ -118,7 +150,7 @@ export function normal(map, x, y, z, n, e = 0.0013) {
  *   lights  [{ p: [x, y, z], power?, falloff?, spot?: { dir: [x, y, z], inner, outer } }]
  *   view    [x, y, z] direction the camera looks (orthographic)
  */
-export function shade(x, y, z, nx, ny, nz, ao, mat, lights, amb, view, occ, bound) {
+export function shade(x, y, z, nx, ny, nz, ao, mat, lights, amb, view, occ, bound, gamma = LOOK.GAMMA) {
   let L = amb * ao;
   for (let i = 0; i < lights.length; i++) {
     const lt = lights[i];
@@ -145,7 +177,7 @@ export function shade(x, y, z, nx, ny, nz, ao, mat, lights, amb, view, occ, boun
       if (ndh > 0) L += sh * cone * Math.pow(ndh, 60) * 0.9;
     }
   }
-  L = Math.pow(L * mat.a, LOOK.GAMMA);
+  L = Math.pow(L * mat.a, gamma);
   return mat.e > L ? mat.e : L;
 }
 
@@ -157,9 +189,10 @@ export function shade(x, y, z, nx, ny, nz, ao, mat, lights, amb, view, occ, boun
  * `haloLight` > 0 draws it only where either side is at least that bright: films
  * use 0.12 so darkness keeps its secrets; figures use 0 so a dark object never
  * melts into its own dark shadow.
- * (x0, y0) offsets the Bayer phase so tiles of one frame line up.
+ * (x0, y0) offsets the screen phase so tiles of one frame line up. `screen` is an
+ * 8×8 threshold map (default Bayer; see SCREENS).
  */
-export function dither(lum, depth, W, H, bits, stride, x0, y0, ground, haloLight = 0) {
+export function dither(lum, depth, W, H, bits, stride, x0, y0, ground, haloLight = 0, screen = BAYER) {
   const D = LOOK.HALO_DEPTH, HL = haloLight;
   for (let j = 0, k = 0; j < H; j++) {
     const row = ((y0 + j) & 7) * 8, out = (y0 + j) * stride + x0;
@@ -173,7 +206,7 @@ export function dither(lum, depth, W, H, bits, stride, x0, y0, ground, haloLight
       if (j > 0 && d - depth[k - W] > D) near = max(near, lum[k - W]);
       if (j < H - 1 && d - depth[k + W] > D) near = max(near, lum[k + W]);
       const halo = near > -1 && (HL <= 0 || max(near, L) > HL);
-      bits[out + i] = halo || L > BAYER[row + ((x0 + i) & 7)] ? 1 : 0;
+      bits[out + i] = halo || L > screen[row + ((x0 + i) & 7)] ? 1 : 0;
     }
   }
 }

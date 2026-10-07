@@ -21,7 +21,7 @@ There is also a film renderer in the same look (moving geometry, cameras and
 lights; dot-matrix type; a square-wave score) and agent skills, so Claude Code
 or Codex can make new figures and films and check their own frames.
 
-**Site:** https://berkboz.github.io/bitlight/
+**Site:** https://brk.bz/bitlight/
 
 ## Twenty-two figures
 
@@ -92,16 +92,30 @@ import { moon } from "bitlight";
 npx shadcn@latest add https://berkboz.github.io/bitlight/registry/bitlight.json
 ```
 
-### Colours
+### Ink, screen, lamp
 
-Two CSS custom properties on the host (or any ancestor):
+Three knobs, all optional, all live (`handle.set()`), none of them re-march the
+geometry. Full reference, ranges and the roadmap: [`docs/CONTROLS.md`](docs/CONTROLS.md).
 
-```css
-.figure { --bitlight-lit: #e4e6df; --bitlight-unlit: #121411; }
+```js
+mount(el, sundial, {
+  ink: { lit: "#f04820", unlit: "#0f0f0f" },   // any two CSS colours
+  screen: "dots",                               // bayer · bayer4 · dots · lines · diagonal · noise
+  light: { power: 3.2, falloff: 0.32, ambient: 0.035, contrast: 0.72, spot: true },
+});
+fig.set({ screen: "lines" });   // partial updates; fig.options returns what is live
 ```
 
-In the light theme, rays that miss everything paint `lit` (paper); in the dark
-theme they paint `unlit` (night). Call `retheme()` after changing them.
+- **Ink.** `ink`, or two CSS custom properties on the host or any ancestor
+  (`--bitlight-lit`, `--bitlight-unlit`), which recolour every figure below
+  them. `theme: "light"` paints empty ground with `lit`, `"dark"` with `unlit`.
+  Keep 3:1 contrast or the edges sink.
+- **Screen.** The order dots switch on, so the texture of the shading. Always an
+  ordered 8×8 map, never diffusion.
+- **Lamp.** Still one light and one input. `spot` swaps the bare lamp for a cone.
+
+Try them live in the **Lab** on the site; it writes the matching snippet and the
+page URL is a shareable link to the look.
 
 ### Behaviour
 
@@ -149,10 +163,10 @@ Then open the sheets. Passing is necessary, not sufficient.
 
 | # | Rule | |
 |---|---|---|
-| 01 | Two inks | Paper and ink. No grey, no alpha, no anti-aliasing. |
+| 01 | Two inks | Paper and ink, any two colours. No grey, no alpha, no anti-aliasing. |
 | 02 | One light | The pointer is the only input. Geometry never moves in a figure. |
 | 03 | Reach | The lamp is clamped to the plate; at the far edge the figure is still composed. |
-| 04 | Order | Bayer, never error diffusion: diffused dots crawl when the light moves. |
+| 04 | Order | Ordered screens only (Bayer by default), never error diffusion: diffused dots crawl when the light moves. |
 | 05 | Edge | A one-dot paper gap separates a near silhouette from what is behind it. |
 | 06 | Range | Every lamp position leaves both inks on the plate. |
 | 07 | Rest | The rest frame is the thumbnail. Light the faces the camera sees. |
@@ -199,13 +213,14 @@ also takes a path, so films can live in another project. Workflow and lessons:
 ## Layout
 
 ```
-src/core.js        the look: lamp model, tone, shadow, Bayer, halo (no DOM)
+src/core.js        the look: lamp model, tone, shadow, screens, halo (no DOM)
 src/bitlight.js    define() + mount(): cache, input, motion, a11y
 src/props.js       shared geometry for scenes and films
 src/react.js       <Bitlight />
 src/figures/       one file per figure (index.js is generated)
 film/              offline renderer: engine, figure, type, frame, render, score, mux, check
 film/films/        the films above
+docs/CONTROLS.md   ink, screen, lamp: reference and plan
 skills/            agent skills: bitlight-create, bitlight-film
 media/             rendered films for the site
 look.mjs           figure checker + frame sheets

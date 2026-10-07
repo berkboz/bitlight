@@ -5,8 +5,9 @@ it. "Kernel" means you cannot break it from a figure file; "look.mjs" means the
 checker fails you; "eyes" means only the frame sheet will tell.
 
 ### 01 · Two inks
-Paper and ink. No grey, no alpha, no anti-aliasing, no third colour for an
-accent. *Satisfy:* nothing to do — tone comes from dot density. *Enforced:*
+Paper and ink. Any two colours (a figure never names its own; the page picks
+them, see `docs/CONTROLS.md`), but no grey, no alpha, no anti-aliasing, no third
+colour for an accent. *Satisfy:* nothing to do — tone comes from dot density. *Enforced:*
 kernel + look.mjs (counts colours, fails at three).
 
 ### 02 · One light
@@ -21,8 +22,10 @@ still composed. *Satisfy:* keep the object inside the plate (|x|, |z| ≤ 1.4) a
 under y ≈ 1.6 so the camera frames it. *Enforced:* kernel clamps; eyes for framing.
 
 ### 04 · Order
-Bayer, never error diffusion. Diffused dots crawl when the light moves; ordered
-dots stay put. *Enforced:* kernel.
+Ordered screens only: Bayer by default, plus the other fixed 8×8 maps in
+`SCREENS`. Never error diffusion: diffused dots crawl when the light moves;
+ordered dots stay put. A figure must read under the default screen. *Enforced:*
+kernel.
 
 ### 05 · Edge
 A one-dot paper gap separates a near silhouette from whatever is behind it, so a
