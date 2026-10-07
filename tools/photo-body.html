@@ -14,7 +14,6 @@
   </div>
   <div class="panel">
     <div class="r"><span class="k">Ink</span><div class="chips" id="inks"></div></div>
-    <div class="r"><span class="k">Tones</span><div class="chips" id="tones"></div></div>
     <div class="r"><span class="k">Screen</span><div class="chips" id="screens"></div></div>
     <div class="sliders">
       <label class="sl"><span>Dots across <output id="o-cols"></output></span><input type="range" id="s-cols" min="80" max="520" step="10"></label>
@@ -48,7 +47,6 @@
   // ---- controls ----
   const mk = (box, items, get, set, label) => items.forEach((it, i) => { const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.dataset.i = i; label(b, it); b.addEventListener("click", () => { set(it, i); sync(); draw(); }); box.append(b); });
   mk($("inks"), PRESETS, 0, (_, i) => { S.ink = i; }, (b, [n, l, u]) => { const s = document.createElement("i"); s.className = "sw"; s.style.background = `conic-gradient(${l} 0 50%, ${u} 0 100%)`; b.append(s, n); });
-  mk($("tones"), TONES, 0, ([n]) => { S.tones = n; }, (b, [, t]) => { b.textContent = t; });
   mk($("screens"), SCREENS, 0, ([n]) => { S.screen = n; }, (b, [, t]) => { b.textContent = t; });
   const SL = ["cols", "contrast", "brightness", "gamma", "sharpen", "smooth"];
   const fmt = (k, v) => (k === "cols" ? String(v) : (+v).toFixed(2));
@@ -58,7 +56,6 @@
   $("reset").addEventListener("click", () => { Object.assign(S, D, { ink: 0, tones: 2, screen: "bayer" }); lumPrev = null; sync(); draw(); });
   function sync() {
     document.querySelectorAll("#inks .chip").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.i === S.ink)));
-    document.querySelectorAll("#tones .chip").forEach((b) => b.setAttribute("aria-pressed", String(TONES[b.dataset.i][0] === S.tones)));
     document.querySelectorAll("#screens .chip").forEach((b) => b.setAttribute("aria-pressed", String(SCREENS[b.dataset.i][0] === S.screen)));
     $("invert").setAttribute("aria-pressed", String(S.invert)); $("auto").setAttribute("aria-pressed", String(S.auto));
     for (const k of SL) { $(`s-${k}`).value = S[k]; $(`o-${k}`).textContent = fmt(k, S[k]); }

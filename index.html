@@ -144,9 +144,6 @@
         <div class="lab-row"><span class="k">Screen</span>
           <div class="chips" id="screens" role="group" aria-label="Dither screen"></div>
         </div>
-        <div class="lab-row"><span class="k">Tones</span>
-          <div class="chips" id="tones" role="group" aria-label="Number of inks"></div>
-        </div>
         <div class="lab-row"><span class="k">Lamp</span>
           <div style="display:grid;gap:12px">
             <div class="chips" role="group" aria-label="Lamp type">
@@ -286,7 +283,6 @@ export default define({
       { id: "dusk", name: "Dusk", ink: { lit: "#ffe3b3", unlit: "#5b1a4a" }, dark: false },
     ];
     const SCREEN_NAMES = [["bayer", "Bayer 8"], ["bayer4", "Bayer 4"], ["dots", "Dots"], ["lines", "Lines"], ["diagonal", "Diagonal"], ["noise", "Grain"]];
-    const TONES = [[2, "1-bit · 2"], [4, "2-bit · 4"], [8, "3-bit · 8"], [16, "4-bit · 16"]];
     const lab = { preset: "paper", ink: null, screen: "bayer", tones: 2, light: { ...DEFAULT_LIGHT }, orbit: false };
     const $ = (id) => document.getElementById(id);
 
@@ -402,11 +398,6 @@ export default define({
       const b = document.createElement("button"); b.type = "button"; b.dataset.screen = id; b.textContent = label;
       b.addEventListener("click", () => { lab.screen = id; hero && hero.set({ screen: id }); gallery.forEach((g) => g.set({ screen: id })); labSync(); renderSnippet(); });
       $("screens").append(b);
-    }
-    for (const [n, label] of TONES) {
-      const b = document.createElement("button"); b.type = "button"; b.dataset.tones = n; b.textContent = label;
-      b.addEventListener("click", () => { lab.tones = n; hero && hero.set({ tones: n }); gallery.forEach((g) => g.set({ tones: n })); labSync(); renderSnippet(); });
-      $("tones").append(b);
     }
     const pickInk = () => { lab.preset = "custom"; lab.ink = { lit: $("ink-lit").value, unlit: $("ink-unlit").value }; applyInk(); labSync(); };
     $("ink-lit").addEventListener("input", pickInk); $("ink-unlit").addEventListener("input", pickInk);

@@ -135,7 +135,7 @@ The same screens work on photographs, video and a camera feed. Nothing is
 uploaded: it runs in your browser or with FFmpeg on your machine.
 
 - **In the browser:** [`photo.html`](photo.html), live at https://brk.bz/bitlight/photo/.
-  Drop an image or a video, or switch on the camera. Pick ink, tones and screen, tune
+  Drop an image or a video, or switch on the camera. Pick ink and screen, tune
   contrast, mid-tones and sharpness, then save a PNG or record the result as video.
 - **As a command** (needs FFmpeg):
 
