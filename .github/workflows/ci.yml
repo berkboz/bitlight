@@ -30,7 +30,7 @@ jobs:
     environment: { name: github-pages }
     steps:
       - uses: actions/checkout@v4
-      - run: mkdir -p _site && cp -r index.html dist registry media _site/
+      - run: mkdir -p _site && cp -r index.html photo.html dist registry media _site/
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
       - uses: actions/deploy-pages@v4
