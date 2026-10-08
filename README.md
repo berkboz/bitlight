@@ -11,11 +11,11 @@
 
 **Objects drawn in one bit, lit by your pointer.**
 
-Twenty-two 3D figures for the web: seventeen objects and five whole scenes.
+Twenty-five 3D figures for the web: twenty objects and five whole scenes.
 Each sits on a plate; the cursor is a lamp hanging over it. Every dot is paper
 or ink, ordered by an 8×8 Bayer matrix, so the shading holds still while the
-light moves. Canvas, no runtime dependencies, 24 kB (11 kB gzipped) for all
-twenty-two.
+light moves. Canvas, no runtime dependencies, 33 kB (15 kB gzipped) for all
+twenty-five.
 
 There is also a film renderer in the same look (moving geometry, cameras and
 lights; dot-matrix type; a square-wave score) and agent skills, so Claude Code
@@ -23,7 +23,7 @@ or Codex can make new figures and films and check their own frames.
 
 **Site:** https://brk.bz/bitlight/
 
-## Twenty-two figures
+## Twenty-five figures
 
 The frame at rest is the thumbnail, so each figure has a designed lamp
 position. Nothing in a figure moves except the light. Some read-outs say more
@@ -34,7 +34,7 @@ name the brightest face.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="media/readme/objects-dark.png">
-  <img alt="Seventeen objects on plates, drawn in one bit" src="media/readme/objects-light.png" width="100%">
+  <img alt="Twenty objects on plates, drawn in one bit" src="media/readme/objects-light.png" width="100%">
 </picture>
 
 **Scenes**: whole set-ups built from shared props. Same kernel, same budget.
@@ -45,8 +45,8 @@ name the brightest face.
 </picture>
 
 ```
-objects  Arch · Bowl · Cage · Columns · Dice · Gear · Keycap · Moon · Mug
-         Orb · Pins · Ring · Steps · Sundial · Tower · Vase · Ziggurat
+objects  Arch · Bowl · Cage · Columns · Dice · Gear · Keycap · Mac · Moon · Mug · Orb
+         Pins · Pocket watch · Rangefinder · Ring · Steps · Sundial · Tower · Vase · Ziggurat
 scenes   Workstation · Computer · Server room · Café · Cloud
 ```
 
@@ -212,8 +212,8 @@ hard; the score is square waves. The square ones are made for feeds. Needs FFmpe
 
 | | | | |
 |:-:|:-:|:-:|:-:|
-| <img src="media/readme/pointer.gif" width="220" alt="Move the light"> | <img src="media/readme/moon-loop.gif" width="220" alt="One light"> | <img src="media/readme/sundial-day.gif" width="220" alt="A day, fast"> | <img src="media/readme/montage.gif" width="220" alt="Twenty-two"> |
-| [Move the light](media/pointer.mp4) | [One light](media/moon-loop.mp4) | [A day, fast](media/sundial-day.mp4) | [Twenty-two](media/montage.mp4) |
+| <img src="media/readme/pointer.gif" width="220" alt="Move the light"> | <img src="media/readme/moon-loop.gif" width="220" alt="One light"> | <img src="media/readme/sundial-day.gif" width="220" alt="A day, fast"> | <img src="media/readme/montage.gif" width="220" alt="Twenty-five"> |
+| [Move the light](media/pointer.mp4) | [One light](media/moon-loop.mp4) | [A day, fast](media/sundial-day.mp4) | [Twenty-five](media/montage.mp4) |
 
 Previews are silent GIFs; the links open the full films with sound
 (mp4 and webm in [`media/`](media/)). The 16:9 one, [`scenes`](media/scenes.mp4),
@@ -224,7 +224,10 @@ is 35 s of the props in motion.
 | `pointer` | 1:1 · 13 s | a cursor drives the lamp across four figures |
 | `moon-loop` | 1:1 · 8 s | one orbit of the lamp, every phase, loops seamlessly |
 | `sundial-day` | 1:1 · 11 s | dawn, a day, dusk; the read-out is the clock |
-| `montage` | 1:1 · 14 s | all 22 figures on the beat |
+| `montage` | 1:1 · 16 s | all 25 figures on the beat |
+| `launch` | 16:9 · 42 s · 4K | the launch film: a dead image, a cursor that lights it, a pocket watch, a Mac, the library on the beat, a build-up, the install line |
+| `launch-teaser` | 16:9 · 15 s · 4K | the first beats of `launch`, for the day before |
+| `launch-loop` | 1:1 · 13 s | rangefinder, pocket watch and Mac lit by a cursor, for feeds |
 | `scenes` | 16:9 · 35 s | the props in motion: fans, a lift, a walking lamp, a lid opening |
 
 ```bash

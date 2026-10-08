@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Bitlight</title>
-<meta name="description" content="Objects drawn in one bit, lit by your pointer. Twenty-two ordered-dither 3D figures and scenes for the web, and a film renderer in the same look." />
+<meta name="description" content="Objects drawn in one bit, lit by your pointer. Twenty-five ordered-dither 3D figures and scenes for the web, and a film renderer in the same look." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -120,7 +120,7 @@
 <body>
 <div class="wrap">
   <div class="bar">
-    <span>Bitlight 0.1 · 22 figures · MIT · <a href="https://github.com/berkboz/bitlight">GitHub</a> · <a href="photo.html">Photo &amp; video</a></span>
+    <span>Bitlight 0.1 · 25 figures · MIT · <a href="https://github.com/berkboz/bitlight">GitHub</a> · <a href="photo.html">Photo &amp; video</a></span>
     <div class="seg" role="group" aria-label="Ground">
       <button type="button" id="t-light" data-theme-set="light">Paper</button>
       <button type="button" id="t-dark" data-theme-set="dark">Night</button>
@@ -190,7 +190,7 @@
   </section>
 
   <section>
-    <h2>Twenty-two figures</h2>
+    <h2>Twenty-five figures</h2>
     <p class="lede">The frame you see at rest is the thumbnail, so each figure has a designed lamp position. Nothing in a figure moves except the light. Some read-outs say more than angles: the sundial tells the time, the moon names its phase, the dice name the brightest face.</p>
     <h3 class="group">Objects</h3>
     <div class="gallery" id="gallery"></div>
@@ -206,7 +206,8 @@
       <figure><video controls muted loop playsinline preload="metadata" aria-label="Move the light: a cursor drives the lamp across four figures"><source src="media/pointer.mp4" type="video/mp4" /><source src="media/pointer.webm" type="video/webm" /></video><figcaption><b>Move the light</b> · 13 s</figcaption></figure>
       <figure><video controls muted loop playsinline preload="metadata" aria-label="One light: the lamp circles a moon through every phase, looping"><source src="media/moon-loop.mp4" type="video/mp4" /><source src="media/moon-loop.webm" type="video/webm" /></video><figcaption><b>One light</b> · 8 s loop</figcaption></figure>
       <figure><video controls muted loop playsinline preload="metadata" aria-label="A day, fast: dawn, a day and dusk on a sundial"><source src="media/sundial-day.mp4" type="video/mp4" /><source src="media/sundial-day.webm" type="video/webm" /></video><figcaption><b>A day, fast</b> · 11 s</figcaption></figure>
-      <figure><video controls muted loop playsinline preload="metadata" aria-label="Twenty-two: every figure for half a second, on the beat"><source src="media/montage.mp4" type="video/mp4" /><source src="media/montage.webm" type="video/webm" /></video><figcaption><b>Twenty-two</b> · 14 s</figcaption></figure>
+      <figure><video controls muted loop playsinline preload="metadata" aria-label="Twenty-five: every figure for half a second, on the beat"><source src="media/montage.mp4" type="video/mp4" /><source src="media/montage.webm" type="video/webm" /></video><figcaption><b>Twenty-five</b> · 16 s</figcaption></figure>
+      <figure class="wide"><video controls muted playsinline preload="metadata" aria-label="Launch: a dead image, a cursor that lights it, a pocket watch, a Mac, the library on the beat, and the install line"><source src="media/launch/bitlight-launch-45s-4k.mp4" type="video/mp4" /></video><figcaption><b>Launch</b> · 42 s · 4K · the film that introduces it, made by it</figcaption></figure>
       <figure class="wide"><video controls muted playsinline preload="metadata" aria-label="Scenes: fans spinning, a computer lifting off, a lamp walking a server aisle, a laptop opening"><source src="media/scenes.mp4" type="video/mp4" /><source src="media/scenes.webm" type="video/webm" /></video><figcaption><b>Scenes</b> · 35 s · the props in motion</figcaption></figure>
     </div>
     <p class="hint" id="film-missing" hidden>The videos are not here yet. Render them with <code>node film/render.mjs --film &lt;name&gt;</code>.</p>
@@ -252,7 +253,7 @@ export default define({
 });</code></pre>
   </section>
 
-  <footer>Canvas, no runtime dependencies, 24 kB (11 kB gzipped) for all twenty-two figures. <a href="https://github.com/berkboz/bitlight">Source on GitHub</a>, MIT. Structure inspired by <a href="https://github.com/lucasmarkes/hairline">Hairline</a> by Lucas Markes: a fixed kernel, written rules, and an agent that checks its frames.</footer>
+  <footer>Canvas, no runtime dependencies, 33 kB (15 kB gzipped) for all twenty-five figures. <a href="https://github.com/berkboz/bitlight">Source on GitHub</a>, MIT. Structure inspired by <a href="https://github.com/lucasmarkes/hairline">Hairline</a> by Lucas Markes: a fixed kernel, written rules, and an agent that checks its frames.</footer>
 </div>
 
 <script src="dist/bitlight.global.js"></script>

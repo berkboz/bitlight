@@ -30,8 +30,10 @@ if (!isMainThread) {
     ? stills.split(",").map((s) => Math.min(film.frames - 1, Math.round(parseFloat(s) * film.fps)))
     : Array.from({ length: film.frames }, (_, i) => i);
   const { W, H } = fmt(film);
+  // --scale 8 renders 3840×2160 from the same 480×270 cells (nearest neighbour: the dots stay crisp)
+  const scale = Number(opt("scale", film.scale ?? SCALE));
   const ffIn = ["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", `${W}x${H}`, "-r", String(film.fps), "-i", "-",
-    "-vf", `scale=${W * SCALE}:${H * SCALE}:flags=neighbor`];
+    "-vf", `scale=${W * scale}:${H * scale}:flags=neighbor`];
 
   const workers = Array.from({ length: Math.max(1, Math.min(os.cpus().length, frames.length)) }, () => new Worker(self, { workerData: { film: film.file } }));
   const ff = stills ? null : spawn("ffmpeg", [...ffIn, "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-pix_fmt", "yuv420p", path.join(out, "picture.mp4")], { stdio: ["pipe", "inherit", "inherit"] });
