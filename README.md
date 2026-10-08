@@ -226,6 +226,7 @@ is 35 s of the props in motion.
 | `sundial-day` | 1:1 · 11 s | dawn, a day, dusk; the read-out is the clock |
 | `montage` | 1:1 · 16 s | all 25 figures on the beat |
 | `launch` | 16:9 · 42 s · 4K | the launch film: a dead image, a cursor that lights it, a pocket watch, a Mac, the library on the beat, a build-up, the install line |
+| `launch-spin` | 16:9 · 27 s · 4K | the objects themselves turn: turntable, racing hands, an orbiting camera, twelve figures spinning on the beat |
 | `launch-teaser` | 16:9 · 15 s · 4K | the first beats of `launch`, for the day before |
 | `launch-loop` | 1:1 · 13 s | rangefinder, pocket watch and Mac lit by a cursor, for feeds |
 | `scenes` | 16:9 · 35 s | the props in motion: fans, a lift, a walking lamp, a lid opening |

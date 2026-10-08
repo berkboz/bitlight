@@ -3,7 +3,7 @@
 ## Unreleased
 
 - **Three detailed figures**: Rangefinder (a film camera with a knurled lens and leather grip), Pocket watch (milled bezel, sixty minute ticks, raised hour marks) and Mac (a bitmap face on its glass): 25 figures. Built close, with material detail in the albedo; geometry and tone live in `src/detail.js` so films can animate them (hands, a blinking face, a shutter).
-- **Launch films**: `launch` (16:9, 42 s), `launch-teaser` (15 s) and `launch-loop` (1:1), in `media/launch/`. `film/render.mjs --scale 8` (or `scale: 8` in a film) renders 3840×2160 from the same cells.
+- **Launch films**: `launch-spin` (the objects turn, 27 s), `launch` (16:9, 42 s), `launch-teaser` (15 s) and `launch-loop` (1:1), in `media/launch/`. `film/render.mjs --scale 8` (or `scale: 8` in a film) renders 3840×2160 from the same cells.
 
 - **Ink, screen, lamp as options.** `mount(el, figure, { ink, screen, light })`,
   `handle.set()` to change them in place, `handle.options` to read them, and the same
