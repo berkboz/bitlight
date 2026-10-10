@@ -129,6 +129,23 @@ page URL is a shareable link to the look.
   `role="img"` and an `aria-label` from its `means`.
 - Geometry is ray-marched once at mount (30–190 ms); re-lighting costs 1–14 ms.
 
+### On the GPU
+
+For moving geometry, many lights, every frame. `bitlight/gpu` runs the same
+kernel (`src/core.js`: march, soft shadow, shade, halo, screens) as a WebGL2
+shader; the scene is GLSL with the same `sd` helpers. Optional: `gpu()` returns
+`null` without WebGL2 and float render targets, and nothing else needs it.
+
+```js
+import { gpu } from "bitlight/gpu";
+
+const view = gpu(canvas, { glsl: `
+  float map(vec3 p) { return min(p.y, sdSphere(p - vec3(0, .62 + .1 * sin(uTime), 0), .62)); }
+  float occ(vec3 p) { return sdSphere(p - vec3(0, .62 + .1 * sin(uTime), 0), .62); }  // casters only
+  void material(vec3 p, vec3 n, inout Mat m) { m.a = 0.9; }` });
+view.render({ lights: [{ p: [-0.9, 1.6, 1.2] }], tones: 4, time: performance.now() / 1000 });
+```
+
 ## Your own pictures and video
 
 The same screens work on photographs, video and a camera feed. Nothing is
@@ -260,6 +277,7 @@ Built something on it? Open a PR that adds it here.
 ```
 src/core.js        the look: lamp model, tone, shadow, screens, halo (no DOM)
 src/bitlight.js    define() + mount(): cache, input, motion, a11y
+src/gpu.js         the same look as a WebGL2 shader, for scenes written in GLSL (optional)
 src/props.js       shared geometry for scenes and films
 src/react.js       <Bitlight />
 src/figures/       one file per figure (index.js is generated)

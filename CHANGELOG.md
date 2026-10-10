@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **`bitlight/gpu`**: an optional WebGL2 backend. The kernel as a fragment shader for scenes written in GLSL (moving geometry, up to eight lights, every frame), with core's own constants, screens and camera; the smoke test checks its tones against the CPU kernel.
+
 - **Made with Bitlight**: a section on the site and in the README for work built on the kernel. First entry: [Fish](https://theorkan.com/fish/) by Orkan Celikhisar, the kernel ported to a WebGL2 shader.
 - **Three detailed figures**: Rangefinder (a film camera with a knurled lens and leather grip), Pocket watch (milled bezel, sixty minute ticks, raised hour marks) and Mac (a bitmap face on its glass): 25 figures. Built close, with material detail in the albedo; geometry and tone live in `src/detail.js` so films can animate them (hands, a blinking face, a shutter).
 - **Launch films**: `launch-spin` (the objects turn, 27 s), `launch` (16:9, 42 s), `launch-teaser` (15 s) and `launch-loop` (1:1), in `media/launch/`. `film/render.mjs --scale 8` (or `scale: 8` in a film) renders 3840×2160 from the same cells.

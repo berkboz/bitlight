@@ -83,7 +83,7 @@ fs.writeFileSync(path.join(root, "test/.react-bundle.js"), bundle.outputFiles[0]
 fs.writeFileSync(path.join(root, "test/.smoke.html"), `<!doctype html><meta charset="utf-8"><div id="global"></div><div id="app"></div>
 <script src="../dist/bitlight.global.js"></script><script src=".react-bundle.js"></script>`);
 const server = await serve(0, root);
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }); // software WebGL2 for the GPU check
 const page = await browser.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -142,6 +142,77 @@ const r = await page.evaluate(() => {
 });
 ok(r.mounted === 1 && r.swapped === 1 && r.after === 0, "React: mounts one canvas, swaps figure cleanly, unmount leaves nothing");
 ok(r.label?.startsWith("Orb.") && r.reads > 0, "React: accessible label set, onRead fires");
+
+// 5 · the GPU backend draws the CPU kernel's tones: a ball on a plate, both ways
+{
+  const core = await import("../src/core.js");
+  const W = 160, H = 100, HALF = 1.25, YAW = 24, PITCH = 16, TARGET = [0, 0.5, 0], BOUND = [0, 0.5, 0, 0.52];
+  const glsl = `float ball(vec3 p) { return sdSphere(p - vec3(0.0, 0.5, 0.0), 0.5); }
+    float map(vec3 p) { return min(p.y, ball(p)); }
+    float occ(vec3 p) { return ball(p); }
+    void material(vec3 p, vec3 n, inout Mat m) { m.a = ball(p) < p.y ? 0.9 : 0.7; }`;
+  const lamp = { p: [-0.9, 1.6, 1.2] }, side = { p: [1.4, 1.0, -0.6], power: 1.6, falloff: 0.5 };
+  const cone = { p: [-0.9, 1.6, 1.2], spot: { dir: [0.45, -0.8, -0.6], inner: 0.9, outer: 0.72 } };
+  const cases = [
+    { tones: 2, screen: "bayer", theme: "light", haloLight: 0, lights: [lamp] },
+    { tones: 4, screen: "bayer", theme: "dark", haloLight: 0.12, lights: [lamp] },
+    { tones: 2, screen: "dots", theme: "light", haloLight: 0, lights: [cone] },
+    { tones: 4, screen: "lines", theme: "dark", haloLight: 0.12, lights: [cone, side] },
+  ];
+  // what mount() does on the same camera: march, normal, occlusion, shade, then dither or ditherLevels
+  const cpu = (c) => {
+    const { f, r, u } = core.camera(YAW, PITCH), unit = (2 * HALF) / W, n = [0, 0, 0];
+    const ball = (x, y, z) => core.sd.sphere(x, y - 0.5, z, 0.5), map = (x, y, z) => Math.min(y, ball(x, y, z));
+    const lum = new Float32Array(W * H), depth = new Float32Array(W * H).fill(1e9), out = new Uint8Array(W * H);
+    for (let j = 0, k = 0; j < H; j++) for (let i = 0; i < W; i++, k++) {
+      const sx = (i + 0.5 - W / 2) * unit, sy = -(j + 0.5 - H / 2) * unit;
+      const ox = TARGET[0] - f[0] * 25 + r[0] * sx + u[0] * sy, oy = TARGET[1] - f[1] * 25 + u[1] * sy, oz = TARGET[2] - f[2] * 25 + r[2] * sx + u[2] * sy;
+      const t = core.march(map, ox, oy, oz, f[0], f[1], f[2]);
+      if (t < 0) { lum[k] = -1; continue; }
+      const x = ox + f[0] * t, y = oy + f[1] * t, z = oz + f[2] * t;
+      core.normal(map, x, y, z, n);
+      depth[k] = t;
+      lum[k] = core.shade(x, y, z, n[0], n[1], n[2], core.occlusion(map, x, y, z, n[0], n[1], n[2]), { a: ball(x, y, z) < y ? 0.9 : 0.7, s: 0, e: 0 }, c.lights, core.LOOK.AMBIENT, f, ball, BOUND);
+    }
+    const ground = c.theme === "dark" ? 0 : c.tones - 1, screen = core.SCREENS[c.screen];
+    if (c.tones === 2) core.dither(lum, depth, W, H, out, W, 0, 0, ground, c.haloLight, screen);
+    else core.ditherLevels(lum, depth, W, H, out, W, 0, 0, ground, c.haloLight, screen, c.tones);
+    return out;
+  };
+  const run = await page.evaluate(async ({ cases, glsl, W, H, HALF, YAW, PITCH, TARGET, BOUND }) => {
+    const { gpu } = await import("/src/gpu.js");
+    const cv = document.createElement("canvas");
+    cv.style.width = W + "px"; cv.style.height = H + "px"; document.body.append(cv);
+    const view = gpu(cv, { glsl, bound: BOUND });
+    if (!view) return null;
+    const base = { yaw: YAW, pitch: PITCH, half: HALF, target: TARGET, cell: 1 };
+    const levels = cases.map((c) => { view.render({ ...base, ...c }); return Array.from(view.levels()); });
+    // the canvas itself: dots upscaled whole, in exactly the two chosen inks
+    view.render({ ...base, cell: 2, tones: 2, ink: { lit: "#f04820", unlit: "#0f0f0f" } });
+    const copy = document.createElement("canvas"); copy.width = cv.width; copy.height = cv.height;
+    const g = copy.getContext("2d"); g.drawImage(cv, 0, 0);
+    const d = g.getImageData(0, 0, cv.width, cv.height).data, seen = new Set();
+    for (let i = 0; i < d.length; i += 4) seen.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+    let bad = "";
+    try { gpu(document.createElement("canvas"), { glsl: "float map(vec3 p) { return nope; }" }); } catch (e) { bad = String(e.message); }
+    const dots = [view.cols, view.rows];
+    view.destroy(); cv.remove();
+    return { levels, dots, inks: [...seen].sort((a, b) => a - b), bad };
+  }, { cases, glsl, W, H, HALF, YAW, PITCH, TARGET, BOUND });
+  if (!run) ok(false, "gpu: WebGL2 with float render targets is unavailable here, so the parity check cannot run");
+  else {
+    ok(run.dots.join() === "80,50", "gpu: cell 2 on a 160×100 canvas makes 80×50 dots");
+    ok(run.inks.join() === [0x0f0f0f, 0xf04820].join(), "gpu: the canvas holds exactly the two chosen inks");
+    ok(/shader failed \(your glsl starts at line \d+\)/.test(run.bad), "gpu: a broken scene throws, naming the line where your glsl starts");
+    cases.forEach((c, n) => {
+      const want = cpu(c), got = run.levels[n];
+      let same = 0;
+      for (let k = 0; k < want.length; k++) if (want[k] === got[k]) same++;
+      const used = new Set(want).size, lamps = c.lights.length > 1 ? "two lamps, one a spot" : c.lights[0].spot ? "spot" : "lamp";
+      ok(same / want.length >= 0.99 && used >= Math.min(c.tones, 3), `gpu: ${c.tones} tones · ${c.screen} · ${lamps} · ${c.theme}: ${(same / want.length).toFixed(4)} of ${want.length} dots match the CPU kernel (${used} tones in play)`);
+    });
+  }
+}
 ok(errors.length === 0, "no page errors" + (errors.length ? ": " + errors.join("; ") : ""));
 await browser.close();
 await server.close();
