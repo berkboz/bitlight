@@ -17,7 +17,8 @@ const cur: { ink: { lit?: string }; screen: ScreenName } = h.options; const map:
 h.lampAt(0.5, 0.5); h.rest(); h.retheme("light"); h.destroy();
 const el = createElement(Bitlight, { figure: mine, cell: 2, ink: { lit: "#fff" }, screen: "lines", light: { spot: true } });
 import { gpu, type GpuView } from "../src/gpu.js";
-const view: GpuView | null = gpu(document.createElement("canvas"), { glsl: "float map(vec3 p) { return p.y; }", bound: [0, 0, 0, 1] });
+const view: GpuView | null = gpu(document.createElement("canvas"), { glsl: "uniform vec3 uBall; float map(vec3 p) { return min(p.y, sdSphere(p - uBall, .5)); }", bound: [0, 0, 0, 1] });
+view?.render({ time: 1, uniforms: { uBall: [0, 0.5, 0], uUnused: 2 } });
 view?.render({ yaw: 30, lights: [{ p: [0, 1, 0], spot: { dir: [0, -1, 0], inner: 0.9, outer: 0.7 } }], screen: "dots", tones: 4, time: 1 });
 const tones: Uint8Array | undefined = view?.levels();
 export { el, map, rgba, tones };

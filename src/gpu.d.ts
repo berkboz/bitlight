@@ -6,7 +6,8 @@ export interface GpuOptions {
    * The scene, in GLSL ES 3.00. Define `float map(vec3 p)`; optionally `float occ(vec3 p)` (what casts
    * shadow: never the floor, a convex ground cannot shade itself; default `map`) and
    * `void material(vec3 p, vec3 n, inout Mat m)` (`Mat` has `a` albedo 0–1, `s` specular 0|1, `e` emission;
-   * it starts at a = 0.9). `uniform float uTime` is the `time` of render().
+   * it starts at a = 0.9). `uniform float uTime` is the `time` of render(); declare more of your own
+   * (`uniform vec3 uBall;`) and set them each frame with `uniforms`.
    *
    * The helpers of core's `sd`, same arguments: `sdSphere(p, r)`, `sdBox(p, b[, r])`, `sdTorus(p, R, r)`,
    * `sdCylinder(p, r, h[, e])`, `sdCapsule(p, a, b, r)`, `sdRect(vec2 p, vec2 b)`, `smin(a, b, k)`, and
@@ -49,6 +50,8 @@ export interface GpuFrame {
   bound?: [number, number, number, number];
   /** Seconds; read in your GLSL as `uTime`. */
   time?: number;
+  /** Your scene's own uniforms by name: a number sets a `float`, an array of 2–4 a `vec2`–`vec4`. Names the GLSL does not declare are skipped. */
+  uniforms?: Record<string, number | number[]>;
 }
 
 export interface GpuView {

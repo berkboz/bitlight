@@ -146,6 +146,9 @@ const view = gpu(canvas, { glsl: `
 view.render({ lights: [{ p: [-0.9, 1.6, 1.2] }], tones: 4, time: performance.now() / 1000 });
 ```
 
+For geometry that follows something outside the shader, declare a uniform in the
+GLSL (`uniform vec3 uBall;`) and pass `uniforms: { uBall: [x, y, z] }` to `render()`.
+
 ## Your own pictures and video
 
 The same screens work on photographs, video and a camera feed. Nothing is
