@@ -40,6 +40,10 @@
       "types": "./src/props.d.ts",
       "default": "./src/props.js"
     },
+    "./gpu": {
+      "types": "./src/gpu.d.ts",
+      "default": "./src/gpu.js"
+    },
     "./image": {
       "types": "./src/image.d.ts",
       "default": "./src/image.js"
