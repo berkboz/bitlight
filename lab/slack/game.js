@@ -43,6 +43,8 @@ cv.addEventListener("pointermove", toCells);
 // a finger on the picture only aims the lamp: on touch, the tool is its own button
 cv.addEventListener("pointerdown", (e) => { toCells(e); if (e.pointerType !== "touch") ptr.down = true; });
 addEventListener("pointerup", () => (ptr.down = false));
+let anyTap = false;                                       // any press anywhere this frame, finger or mouse
+addEventListener("pointerdown", () => (anyTap = true));
 const stick = { x: 0, y: 0 };                             // the touch stick, when there is one
 const ax = () => (keys.has("KeyD") || keys.has("ArrowRight") || stick.x > 0.3 ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") || stick.x < -0.3 ? 1 : 0);
 const ay = () => (keys.has("KeyS") || keys.has("ArrowDown") || stick.y > 0.3 ? 1 : 0) - (keys.has("KeyW") || keys.has("ArrowUp") || stick.y < -0.3 ? 1 : 0);
@@ -109,6 +111,16 @@ function speak(m) {
     a.play().catch(() => {});
   } catch { /* no recording: blips */ }
 }
+
+// ---------- the tapping ----------
+// One signal runs under the whole game: something on the dead line is still sending, in Morse.
+// You hear it before you see anything, through the deck, and it is what the splice blinks.
+const MORSE = { A: ".-", N: "-.", Y: "-.--", O: "---", E: "." }, WORD = "ANYONE", UNIT = 0.17, TAPS = [];
+let TAPLEN = 0, tapVol = 0, tapWas = 0, goal = "";
+{ let t = 0; for (const ch of WORD) { for (const c of MORSE[ch]) { const l = c === "." ? 1 : 3; TAPS.push([t, l * UNIT]); t += (l + 1) * UNIT; } t += 2 * UNIT; } TAPLEN = t + 2.8; }
+const tapNow = (t) => { const u = ((t % TAPLEN) + TAPLEN) % TAPLEN; for (const tp of TAPS) if (u >= tp[0] && u < tp[0] + tp[1]) return tp; return null; };
+const tapAt = (t) => (tapNow(t) ? 1 : 0);
+function tapTick() { const tp = tapNow(now); if (tp && !tapWas && tapVol > 0.004) tone(318, max(0.08, tp[1]), tapVol, "sine", 306); tapWas = tp ? 1 : 0; }
 
 // ---------- words ----------
 let now = 0;
@@ -183,7 +195,7 @@ scenes.deck = {
     you.sit = false; you.x = at ?? (d.ch === 2 ? 150 : 132); you.face = at ? -1 : 1;
     d.intro = intro ? 7.5 : 0;
     d.gull = { x: 262, y: DF - 28, fly: 0, t: 0 };
-    if (intro) { document.body.classList.add("cine"); cam.x = DW - COLS; card("north atlantic · 05:40\ncable ship <i>patience</i>", 5.5); }
+    if (intro) { document.body.classList.add("cine"); cam.x = DW - COLS; card("north atlantic · 04:50\ncable ship <i>patience</i>\n\nthey sent for a diver", 6); }
     else if (d.ch === 2 && !at) { cam.x = 0; card("the same day · 13:10", 4); say("Up she comes. Mind your head. Mind his, too.", { id: "upshe", who: "bo" }); }
     if (seaGain) seaGain.gain.value = 0.05;
     if (lp) lp.frequency.value = 2400;
@@ -200,7 +212,10 @@ scenes.deck = {
     const g = d.gull;
     if (!g.fly && abs(you.x - g.x) < 40) { g.fly = 1; knock(900, 0.12, 0.08); }
     if (g.fly) { g.t += dt; g.x -= 46 * dt; g.y -= (28 - g.t * 6) * dt; }
+    goal = two ? "report to the radio room" : "find the radio room";
+    if (floor(now / 26) !== floor((now - dt) / 26) && !two) tone(74, 2.6, 0.07, "sawtooth", 70);          // a horn, somewhere in the fog
     if (intro) return;
+    if (!two) { say("You're the diver. He's been asking for you. By name.", { id: "hook1", who: "bo" }); say("Nobody here told him your name.", { id: "hook2", who: "bo", gap: 0.6 }); }
     // nobody makes you go below. They do mention it.
     if (!two) {
       if (sceneT > 50) say("He's waiting, you know. He's very good at it.", { id: "wait1", who: "bo" });
@@ -209,7 +224,7 @@ scenes.deck = {
     if (you.x <= 32) say("That's the edge of the ship. Past it is the job.", { id: "edge", who: "you think" });
     const BO = two
       ? ["You came back up. Most do.", "He talks about that old cable like it owes him a letter.", "Mind the wet bit. Different wet bit."]
-      : ["Morning. Mind the wet bit. It's all the wet bit.", "He's been on that radio since before I signed on. Before the ship did, maybe.", "If he says take your time, hurry."];
+      : ["Hear that, through the deck? It's been coming up the cable since it died. Don't ask me what it spells.", "He's been on that radio since before I signed on. Before the ship did, maybe.", "Every clock aboard stopped at twelve past three. Mine too. Mind the wet bit."];
     const list = [
       { x: 190, r: 34, label: "the submarine", act: () => {
         d.subTries++;
@@ -238,8 +253,24 @@ scenes.deck = {
       return (noon ? 0.7 : 0.62) - 0.3 * q + 0.08 * w + glit;
     };
     const FN = [0, -0.86, 0.5], sx_ = noon ? -1 : -7;                    // shadows lean away from the sun
+    const night = !noon;
+    tapVol = 0.05;
+    if (night) {
+      // before dawn: fog on the water, rain, and nothing lit but what the ship lights itself
+      env.tones = 8; env.screen = "bayer"; env.lit = [214, 230, 236]; env.unlit = [6, 12, 19]; env.amb = 0.1; env.sun = { d: nrm3(-0.2, -0.9, 0.4), p: 0.07 };
+      env.outline = "light"; env.haloMin = 0.13; env.cut = 0.02;
+      env.lights = [110, 300, 480].map((x) => ({ x: x + 13 - cam.x, y: DF - 44, z: -20, p: 2.7, k: 0.0011, dir: nrm3(0, 1, -0.25), c0: 0.3, c1: 0.78 }));
+      env.lights.push({ x: 652 - cam.x, y: 90, z: -26, p: 1.7, k: 0.002 }, { x: 196 - cam.x, y: DF - 52, z: -6, p: 1.3, k: 0.0026 }, { x: you.x - cam.x, y: DF - 20, z: 30, p: 0.35, k: 0.004 });
+      env.bg = (i, j) => {
+        const fogb = 0.07 * (0.5 + 0.5 * sin(i * 0.021 + t * 0.12 + sin(j * 0.21) * 1.3)) * Math.exp(-(((j - H0) / 24) ** 2));
+        if (j < H0) return 0.03 + 0.05 * (j / H0) ** 3 + fogb + (hash(i + floor(cam.x * 0.05), j) > 0.9986 && j < H0 - 16 ? 0.5 : 0);
+        return 0.028 + 0.03 * sin(i * 0.09 + j * 0.7 + t * 1.6) * sin(j * 0.35 - t * 0.9) + fogb;
+      };
+    }
     E.clear();
-    layer(0.05, -300); disc(sunX + cam.x * 0.05 + E.lx(), sunY, sunR, 0.9, { e: 1, red: 1 });
+    layer(0.05, -300);
+    if (night) { rect(E.lx() + 262, H0 - 0.5, 34, 0.5, 0.9, { e: 0.85, red: 1 }); for (let k = 0; k < 14; k++) dot(E.lx() + 222 - k * 3, H0 - 1, 0.9, { e: 0.8, red: 1 }), dot(E.lx() + 300 + k * 3, H0 - 1, 0.9, { e: 0.8, red: 1 }); }               // the only colour out there: where the day will be
+    else disc(sunX + cam.x * 0.05 + E.lx(), sunY, sunR, 0.9, { e: 1, red: 1 });
     layer(0.08, -280);
     for (const [cx, cy, s] of [[60, 34, 1], [190, 20, 0.8], [330, 42, 1.15]]) {
       const x = ((cx + t * 1.4) % 470) - 40 + E.lx();
@@ -255,6 +286,7 @@ scenes.deck = {
     for (let x = 34; x < DW; x += 74) { disc(x, DF + 34, 7, 0.62, { z: 0.3 }); disc(x, DF + 34, 4.5, 0.5, { z: 0.5, e: 0.75 }); }
     for (let x = 0; x <= 610; x += 36) rect(x, DF - 17, 1.5, 11, 0.72, { z: 6 });
     seg(0, DF - 27, 608, DF - 27, 2.4, 0.82, { z: 6 }); seg(0, DF - 17, 608, DF - 17, 1.4, 0.7, { z: 6, flat: 1 });
+    if (night) { for (const x of [110, 300, 480]) draw(F.beacon, { on: 1 }, x, DF - 4, { size: 26, z: 14 }); disc(70, 23, 1.7, 0.9, { e: sin(t * 2.2) > 0 ? 1 : 0.08, red: 1, z: 6 }); }
     // crane, with the submarine waiting under it
     rect(70, 88, 4, 64, 0.52, { z: 4 }); seg(70, 26, 196, 44, 4.5, 0.56, { z: 4 }); seg(70, 60, 120, 34, 2, 0.45, { z: 4 });
     seg(196, 44, 196, DF - 36, 1, 0.45, { z: 4, flat: 1 });
@@ -282,6 +314,7 @@ scenes.deck = {
     layer(1.35, 90);
     for (const x of [140, 560, 900]) { disc(x, ROWS + 2, 13, 0.24, { round: 1 }); rect(x, ROWS - 14, 5, 9, 0.24); disc(x, ROWS - 23, 8, 0.26, { round: 1 }); }
     seg(700, -6, 716, 54 + sin(t) * 2, 3, 0.26);
+    if (night) { layer(1.2, 120); for (let n = 0; n < 54; n++) { const x = ((hash(n, 71) * 460 - t * 30 - E.lx()) % 460 + 460) % 460 - 30 + E.lx(), y = (hash(n, 72) * ROWS + t * (170 + hash(n, 73) * 60)) % ROWS; seg(x, y, x - 3, y + 7, 1, 0, { e: 0.13, flat: 1 }); } }
   },
 };
 
@@ -300,10 +333,11 @@ function tell(st, lines) {
   return false;
 }
 const BRIEF = [
-  { id: "b0", text: "Ah. There you are. Mind the step. There isn't one, but mind it anyway." },
+  { id: "b0", text: "Ah. There you are. I'd know that walk anywhere. Mind the step. There isn't one." },
   { id: "b1", text: "Sit down, if you like." },
   { id: "b2", when: () => you.sit || (room.wait && now - room.wait > 8), text: () => (you.sit ? "Thank you. People used to sit all the time." : "Or stand. Standing is also a way of listening.") },
   { id: "b3", text: "A cable has gone quiet. Two thousand metres down. I'd like to know why." },
+  { id: "b3b", text: "Something on it is still tapping. I'd rather you didn't count the taps." },
   { id: "b4", text: "The little submarine is yours. Sorry about the controls. Nobody asked what they were for." },
   { id: "b5", text: "Follow the line down. Bring me the first thing that looks wrong. Take your time. There's a small hurry." },
   { id: "b6", text: "The hatch is by the wall, when you're ready." },
@@ -345,7 +379,10 @@ scenes.room = {
     }
     if ((two ? r.done2 : r.done) && now - r.doneAt > 30) say("The hatch hasn't moved. I checked.", { id: "hatchidle" + RUN.leg });
     const ready = two ? r.done2 : r.done;
+    goal = ready ? "the hatch" : "hear him out";
     const list = [
+      { x: 124, r: 12, label: "the clock", act: () => { say("Twelve past three. It stopped when the line did.", { id: "clock" + floor(now / 14), who: "the clock", urgent: true }); say("They all did. Bo's watch. The galley. Me, very nearly.", { id: "clockr" }); } },
+      { x: 292, r: 8, label: "the plug", act: () => { say("The radio's plug is on the floor, a long way from the wall.", { id: "plug" + floor(now / 14), who: "the plug", urgent: true, red: true }); say("Yes. I know. Don't put it back. I'd hate to find out.", { id: "plugr" }); } },
       { x: 22, r: 18, label: "back on deck", act: () => { if (!ready) { r.left++; say("The sea is the other way. Down, mostly.", { id: "leave" + r.left, urgent: true, keep: true }); } go("deck", { at: 652 }); } },
       { x: 158, r: 16, label: you.sit ? "stand up" : "sit", act: () => {
         if (you.sit && !ready && r.s1.i >= 3) say("Up again. That's all right. I'll talk to your knees.", { id: "knees", urgent: true });
@@ -365,13 +402,14 @@ scenes.room = {
       say("Yesterday, in your handwriting: 'cut made. not logged.'", { id: "log" + floor(now / 15), who: "dive log", urgent: true, red: true });
       say("Ah. You found that. We don't need to talk about it. We could, though.", { id: "logr" }); RUN.logSeen = true;
     } });
-    const n = you.sit ? list[1] : nearest(list, you.x);
+    const n = you.sit ? list.find((o) => o.x === 158) : nearest(list, you.x);
     prompt(n ? `<kbd>E</kbd>${n.label}` : null);
     if (n && actHit()) n.act();
   },
   draw() {
     const t = now, r = room, bob = sin(t * 0.7) * 2;
-    env.holes = false; env.tones = 8; env.screen = "bayer"; env.lit = [255, 228, 180]; env.unlit = [24, 17, 13]; env.amb = 0.2; env.ambRow = null; env.sun = null;
+    tapVol = 0.035;
+    env.holes = false; env.tones = 8; env.screen = "bayer"; env.lit = [255, 228, 180]; env.unlit = [20, 14, 11]; env.amb = 0.13; env.ambRow = null; env.sun = null;
     env.outline = "light"; env.haloMin = 0.2; env.cut = 0; env.fog = 0;
     env.lights = [{ x: r.lampX, y: 62, z: 22, p: 3.9, k: 0.00055 }, { x: 84, y: 66, z: 46, p: 1.2, k: 0.001 }];
     env.bg = (i, j) => (j < 70 + bob ? 0.86 : 0.45 + 0.08 * sin(j * 1.3 + i * 0.2 + t * 2));   // the sea, through the porthole
@@ -397,9 +435,12 @@ scenes.room = {
     // shelf, books, a clock that tells the real time
     rect(336, 92, 30, 1.5, 0.6, { z: 2 });
     [[312, 9, 0.3], [318, 12, 0.8], [323, 10, 0.5], [329, 13, 0.36], [335, 8, 0.86], [343, 11, 0.44], [350, 12, 0.7], [357, 9, 0.3]].forEach(([x, h, a]) => rect(x, 90.5 - h / 2, 2.4, h / 2, a, { z: 2 }));
-    disc(340, 44, 11, 0.4, { z: 1 }); disc(340, 44, 9, 0.9, { z: 1.3 });
-    const dt_ = new Date(), hA = ((dt_.getHours() % 12) + dt_.getMinutes() / 60) / 12 * TAU, mA = (dt_.getMinutes() / 60) * TAU;
-    seg(340, 44, 340 + sin(hA) * 4.5, 44 - cos(hA) * 4.5, 1.6, 0.1, { z: 1.5, flat: 1 }); seg(340, 44, 340 + sin(mA) * 7, 44 - cos(mA) * 7, 1.2, 0.1, { z: 1.5, flat: 1 });
+    // the clock: stopped at 03:12, like every other one aboard
+    { const cx = 124, cy = 42, hA = ((3 + 12 / 60) / 12) * TAU, mA = (12 / 60) * TAU;
+      disc(cx, cy, 11, 0.4, { z: 1 }); disc(cx, cy, 9, 0.9, { z: 1.3 });
+      seg(cx, cy, cx + sin(hA) * 4.5, cy - cos(hA) * 4.5, 1.6, 0.1, { z: 1.5, flat: 1 }); seg(cx, cy, cx + sin(mA) * 7, cy - cos(mA) * 7, 1.2, 0.1, { z: 1.5, flat: 1 }); }
+    // the socket on the wall, and (below) the radio's plug, nowhere near it
+    rect(304, 134, 3, 3.5, 0.78, { z: 1 }); disc(303, 134, 0.6, 0.1, { z: 1.2 }); disc(305, 134, 0.6, 0.1, { z: 1.2 });
     // the hatch
     rect(332, RF + 8, 19, 5, 0.08, { z: 0.4 }); rect(332, RF + 8, 21, 6.5, 0.7, { z: 0.3 });
     seg(320, RF + 6, 320, RF - 22, 2, 0.74, { z: 30 }); seg(344, RF + 6, 344, RF - 22, 2, 0.74, { z: 30 }); seg(320, RF - 22, 344, RF - 22, 2, 0.74, { z: 30 });
@@ -414,6 +455,8 @@ scenes.room = {
       rect(244, RF - 26.5, 6, 1.5, 0.3, { z: 3 }); rect(244, RF - 27.5, 5.4, 1, 0.9, { z: 3.2 }); rect(244, RF - 27.5, 0.5, 1, 0.3, { z: 3.4 });
     }
     for (let i = 0; i < 3; i++) { const q = (t * 0.5 + i / 3) % 1; dot(197 + sin(q * 6 + i) * 2.5, RF - 32 - q * 14, 0, { e: 0.5 * (1 - q), z: 2 }); }
+    seg(238, RF - 8, 246, RF + 5, 1, 0.24, { flat: 1, z: -3 }); seg(246, RF + 5, 270, RF + 7, 1, 0.24, { flat: 1, z: 2 }); seg(270, RF + 7, 290, RF + 5, 1, 0.24, { flat: 1, z: 2 });
+    rect(292, RF + 5, 2.4, 1.6, 0.85, { z: 3 }); rect(295, RF + 4.6, 1, 0.4, 0.9, { z: 3 }); rect(295, RF + 5.6, 1, 0.4, 0.9, { z: 3 });
     seg(200, -2, r.lampX, 50, 1, 0.3, { flat: 1, z: 10 });
     draw(F.lampShade, {}, r.lampX, 58, { size: 26, z: 12 });
     draw(F.diver, youPose(), you.x + (you.sit ? 1 : 0), RF + (you.sit ? -8 : 4), { size: 26, z: you.sit ? -4 : 14, flip: you.face < 0 });
@@ -448,6 +491,7 @@ function diveReset() {
     branches: branches().map((b) => ({ ...b, cut: false, prog: 0 })),
     things: [
       { kind: "pod", def: F.pod, x: 790, dl: 0, act: "smash", dur: 0.8, say: "Repeater. Eleven of these between here and the far shore, each a small obedient amplifier." },
+      { kind: "slate", def: F.slate, x: 968, dl: -9, act: "read", dur: 0.5 },
       { kind: "sleeve", def: F.sleeve, x: 1096, dl: 0, up: 5, act: "collect", dur: 0.6, say: "A shark bit the cable and the cable bit back, in polymer. The sleeve is the result." },
       { kind: "barn", def: F.barnacles, x: 1130, dl: -7, act: "smash", dur: 0.5 }, { kind: "barn", def: F.barnacles, x: 1150, dl: 6, act: "smash", dur: 0.5 }, { kind: "barn", def: F.barnacles, x: 1166, dl: -2, act: "smash", dur: 0.5 },
       { kind: "kettle", def: F.kettle, x: 1284, dl: 10, act: "smash", dur: 0.6 },
@@ -610,7 +654,7 @@ scenes.dive = {
     // --- hands and targets (worked out before moving, so the diver can drift to a target's lane)
     let target = null, td = 24;
     const alt = ground(who.x, who.lane) - who.y;
-    for (const t of D.things) { t.hot = max(0, t.hot - dt * 3); t.shake = max(0, t.shake - dt * 4); if (t.gone) continue; const d = abs(who.x - t.x); if (d < td && alt < 44) { td = d; target = t; } }
+    for (const t of D.things) { t.hot = max(0, t.hot - dt * 3); t.shake = max(0, t.shake - dt * 4); if (t.gone || t.read) continue; const d = abs(who.x - t.x); if (d < td && alt < 44) { td = d; target = t; } }
     for (const b of D.branches) {
       b.near = false; if (b.cut) continue;
       const mid = (b.x0 + b.x1) / 2, d = abs(who.x - mid);
@@ -690,7 +734,7 @@ scenes.dive = {
       const ds = hypot(me.x - s.x, me.y - (s.y + 12));
       if (target) {
         target.hot = 1;
-        pr = `<kbd>hold space</kbd>${target.id ? "cut" : target.act === "collect" ? "take" : "smash"}`;
+        pr = `<kbd>hold space</kbd>${target.id ? "cut" : target.act === "collect" ? "take" : target.act === "read" ? "read" : "smash"}`;
         if (!toolDown()) D.latch = false;
         if (toolDown() && !D.latch) {
           target.prog += dt; target.shake = 1;
@@ -701,6 +745,10 @@ scenes.dive = {
       } else if (ds < 30) { pr = "<kbd>E</kbd>back in"; if (actHit()) { D.mode = "sub"; knock(160, 0.3, 0.25); } }
     }
     prompt(pr);
+    // --- the tapping: the nearer the break and the deeper you are, the more of it there is
+    { const prox = clamp(1 - abs(SPLICE - who.x) / 1150, 0, 1); tapVol = 0.025 + 0.36 * prox * prox * clamp(who.y / SB, 0, 1);
+      if (prox > 0.66 && D.leg === 2) say("Hear it? Don't count it. Counting it is how it starts.", { id: "taps" }); }
+    goal = D.leg === 2 ? "find the break" : RUN.sleeve ? "bring it up" : "follow the cable. find what is wrong";
     // --- the voice
     if (alt < 70) say("Good. Follow the thin grey line. The one that isn't moving.", { id: "obed1" });
     if (alt < 30 && who.x > 420) say("That's the cable. Hold it gently. It's had a long day.", { id: "obed4" });
@@ -758,7 +806,7 @@ scenes.dive = {
       const ln = cl(b.x) - 16, on = b.flick ? (sin(t * 23) + sin(t * 7.3) > -0.6 ? 1 : 0.15) : 1;
       L.push({ x: b.x + 11 - cam.x, y: T(b.x) - 1.56 * SZ - cam.y, z: ln * ZK, p: 2.3 * on, k: 0.0013, dir: nrm([0.1, 1, 0.25]), c0: 0.42, c1: 0.8, red: b.red });
     }
-    { const pu = 0.5 + 0.5 * sin(t * 2.4); L.push({ x: SPLICE - cam.x, y: T(SPLICE) - 6 - cam.y, z: cl(SPLICE) * ZK + 6, p: 0.5 + 0.9 * pu, k: 0.004, red: 1 }); }
+    { const pu = tapAt(t); L.push({ x: SPLICE - cam.x, y: T(SPLICE) - 6 - cam.y, z: cl(SPLICE) * ZK + 6, p: 0.22 + 1.3 * pu, k: 0.004, red: 1 }); }       // the splice blinks what you have been hearing
     env.lights = L.filter((l) => l.x > -200 && l.x < COLS + 200);
 
     E.clear();
@@ -813,7 +861,7 @@ scenes.dive = {
       E.lane(ln); draw(th.def, th.kind === "pod" ? { on: sin(t * 3) > 0 ? 1 : 0 } : {}, th.x + sx, ground(th.x, ln) - (th.up || 0), { size: SZ, z: 1, glow: 0.16 * th.hot * (0.6 + 0.4 * sin(t * 14)) });
     }
     // the splice: the only warm thing down here
-    { const ln = cl(SPLICE), y = ground(SPLICE, ln), pu = 0.5 + 0.5 * sin(t * 2.4); E.lane(ln); disc(SPLICE, y - 5, 6.5, 0.3, { e: 0.25 + 0.6 * pu, red: 1, round: 1 }); seg(SPLICE - 12, y - 3, SPLICE - 4, y - 4, 3.6, 0.5); }
+    { const ln = cl(SPLICE), y = ground(SPLICE, ln), pu = tapAt(t); E.lane(ln); disc(SPLICE, y - 5, 6.5, 0.3, { e: 0.12 + 0.85 * pu, red: 1, round: 1 }); seg(SPLICE - 12, y - 3, SPLICE - 4, y - 4, 3.6, 0.5); }
     { const ln = cl(D.pig.x) + 15; E.lane(ln); draw(F.seapig, { f: floor(t * 5) % 6 }, D.pig.x, ground(D.pig.x, ln), { size: SZ, flip: D.pig.dir < 0 }); }
     // mid-water company
     E.lane(0);
@@ -855,6 +903,12 @@ function finish(t) {
     for (let i = 0; i < 16; i++) D.debris.push({ x, y, vx: (Math.random() - 0.5) * 60, vy: -Math.random() * 30, life: 0.9 });
     return;
   }
+  if (t.act === "read") {
+    t.read = true; RUN.slate = true; knock(300, 0.3, 0.2);
+    say("IF YOU ARE READING THIS, YOU CAME BACK. DON'T CUT IT THIS TIME.", { id: "slate", who: "a diver's slate, in your handwriting", urgent: true, red: true });
+    say("Ah. You weren't meant to find that. Not yet. Possibly not at all.", { id: "slater" });
+    return;
+  }
   t.gone = true;
   if (t.act === "collect") {
     D.salvage++; tone(660, 0.25, 0.2, "triangle", 990);
@@ -877,7 +931,8 @@ scenes.end = {
     cam.x = 0; cam.y = 0;
     // the bill: what you brought up, and what you switched off on the way
     const quiet = cuts.length ? "gone quiet\n" + cuts.map((c) => "<small>" + c + "</small>").join("\n") : "nothing went quiet. he noticed.";
-    card(`<b>SLACK</b>one day, two dives\n\nbrought up ${salvage} of 2\n${quiet}\n\nR · dive again`, 9999);
+    card(`<b>SLACK</b>one day, two dives\n\nbrought up ${salvage} of 2\n${quiet}\n\nwhat it was tapping, all this time\n<small>${WORD.split("").join(" ")}</small>\n\nR · dive again`, 9999);
+    goal = "";
   },
   step() { if (hit.has("KeyR")) location.reload(); },
   draw() {
@@ -886,7 +941,28 @@ scenes.end = {
     E.clear(); layer(1, 0);
     for (let n = 0; n < 120; n++) dot(hash(n, 11) * COLS, (hash(n, 12) * ROWS + t * (1 + hash(n, 13) * 3)) % ROWS, 0, { e: 0.25 });
     for (let x = 0; x < COLS; x += 6) seg(x, 198 + sin(x * 0.02) * 4, x + 6.5, 198 + sin((x + 6) * 0.02) * 4, 1.6, 0, { e: 0.3 });
-    disc(COLS / 2, 196, 5 + sin(t * 2) * 1.2, 0, { e: 0.6 + 0.4 * sin(t * 2), red: 1 });
+    tapVol = 0.24;
+    disc(COLS / 2, 196, tapAt(t) ? 5.5 : 3, 0, { e: tapAt(t) ? 1 : 0.25, red: 1 });
+  },
+};
+
+// =====================================================================================
+// OPEN — before the title: 03:12, and the one thing that did not stop
+// =====================================================================================
+const OPEN = [[1.4, "03:12"], [4.2, "nine thousand kilometres of cable go quiet."], [8, "a town of four hundred tries again. and again."], [12, "nobody can say why."], [16.5, "except that something on the line\nis still tapping."]];
+scenes.open = {
+  enter() { cam.x = 0; cam.y = 0; this.n = 0; goal = ""; },
+  step() {
+    while (this.n < OPEN.length && sceneT > OPEN[this.n][0]) { this.n++; card(OPEN.slice(0, this.n).map((l, i) => (i === this.n - 1 ? l[1] : `<s>${l[1]}</s>`)).join("\n"), 999); }
+    if (sceneT > 23.5 || (sceneT > 0.8 && (hit.size || anyTap))) { $("#card").classList.remove("on"); cardT = 0; go("title"); }
+  },
+  draw() {
+    const t = now, on = tapAt(t);
+    tapVol = 0.3;
+    env.holes = false; env.tones = 2; env.screen = "noise"; env.lit = [216, 210, 196]; env.unlit = [3, 4, 5]; env.amb = 0; env.ambRow = null; env.sun = null; env.lights = []; env.outline = null; env.cut = 0.03; env.fog = 0; env.bg = () => 0;
+    E.clear(); layer(1, 0);
+    for (let n = 0; n < 70; n++) dot(hash(n, 11) * COLS, (hash(n, 12) * ROWS + t * (0.6 + hash(n, 13) * 2)) % ROWS, 0, { e: 0.16 });
+    disc(COLS / 2, 206, on ? 3.2 : 1.6, 0, { e: on ? 1 : 0.25, red: 1 });
   },
 };
 
@@ -894,21 +970,22 @@ scenes.end = {
 // TITLE — the line on the seabed, before anyone goes looking
 // =====================================================================================
 scenes.title = {
-  enter() { cam.x = 0; cam.y = 0; },
+  enter() { cam.x = 0; cam.y = 0; goal = ""; stage_ = "title"; $("#go").classList.remove("off", "wait"); },
   step() {},
   draw() {
-    const t = now, sx = 250 + sin(t * 0.25) * 30, sy = 96 + sin(t * 0.6) * 5, CY = (x) => 186 + sin(x * 0.02) * 4;
+    const t = now, sx = 250 + sin(t * 0.25) * 30, sy = 96 + sin(t * 0.6) * 5, CY = (x) => 186 + sin(x * 0.02) * 4, tap = tapAt(t);
+    tapVol = 0.2;
     env.holes = false; env.tones = 6; env.screen = "bayer"; env.lit = [206, 236, 230]; env.unlit = [4, 19, 24]; env.amb = 1; env.sun = { d: [0, -0.96, 0.28], p: 0.1 };
     const rows = (env.ambRow ||= new Float32Array(ROWS)); for (let j = 0; j < ROWS; j++) rows[j] = 0.3 * Math.exp(-j / 40) + 0.012;
     env.outline = "light"; env.haloMin = 0.085; env.cut = 0.02; env.fog = 0; env.bg = (i, j) => 0.3 * Math.exp(-j / 40);
     env.lights = [{ x: sx + 24, y: sy + 7, z: 20, p: 3.2, k: 0.0014, dir: nrm([0.62, 0.74, 0.25]), c0: 0.8, c1: 0.93, beam: 0.07, bx: 0.64, by: 0.77 }, { x: sx, y: sy, z: 30, p: 0.9, k: 0.005 },
-      { x: 300, y: CY(300) - 4, z: 8, p: 0.4 + 0.8 * (0.5 + 0.5 * sin(t * 2.4)), k: 0.004, red: 1 }];
+      { x: 300, y: CY(300) - 4, z: 8, p: 0.25 + 1.1 * tap, k: 0.004, red: 1 }];
     E.clear(); layer(1, 0);
     for (let n = 0; n < 120; n++) dot(hash(n, 11) * COLS, (hash(n, 12) * ROWS + t * (1 + hash(n, 13) * 3)) % ROWS, 0, { e: 0.2 });
     fillBelow((x) => CY(x) + 6, 0.36, 0.16, { z: -20 });
     for (let x = 0; x < 296; x += 6) seg(x, CY(x), x + 6.5, CY(x + 6), 3, 0.86, { z: -6 });
     for (let x = 312; x < COLS; x += 6) seg(x, CY(x) + 1, x + 6.5, CY(x + 6) + 1, 1.6, 0.45, { z: -6 });
-    disc(302, CY(302) - 2, 5, 0.3, { e: 0.3 + 0.6 * (0.5 + 0.5 * sin(t * 2.4)), red: 1, round: 1 });
+    disc(302, CY(302) - 2, 5, 0.3, { e: 0.14 + 0.8 * tap, red: 1, round: 1 });
     draw(F.sub, { f: floor(t * 5) % 4, lit: 1 }, sx, sy + 16, { size: 22, z: 6 });
     draw(F.jelly, { f: floor(t * 6) % 8 }, 70, 70 + sin(t * 0.8) * 4, { size: 20, z: -14 });
     draw(F.starfish, {}, 120, CY(120) + 8, { size: 20, z: -8 }); draw(F.rock, { s: 2 }, 40, CY(40) + 10, { size: 26, z: -10 });
@@ -922,25 +999,25 @@ function hud() {
   const g = $("#gauge");
   if (scene === scenes.dive) {
     const who = D.mode === "eva" ? D.me : D.sub, m = max(0, Math.round(who.y * M_PER)), bottom = Math.round((SB + 30) * M_PER);
-    $("#hud").innerHTML = `<b>${D.mode === "eva" ? "on the hose" : "submarine"}</b> · ${env.tones} inks${GP.shown ? " · gpu floor" : ""}`;
-    $("#salv").textContent = `${RUN.sleeve && D.leg === 1 ? "bring it up ↑ · " : ""}salvage ${RUN.salvage + D.salvage}/2 · gone quiet ${RUN.cuts.length + D.quiet}`;
+    $("#hud").innerHTML = `<b>${D.mode === "eva" ? "on the hose" : "submarine"}</b>${goal ? ` · <em>${goal}</em>` : ""}`;
+    $("#salv").textContent = `salvage ${RUN.salvage + D.salvage}/2 · gone quiet ${RUN.cuts.length + D.quiet}`;
     g.classList.add("on");
     g.querySelector("i").style.top = clamp(m / bottom, 0, 1) * 100 + "%";
     g.querySelector("i").dataset.m = m.toLocaleString("en") + " m";
     if (floor(now * 2) !== floor(now * 2 - 0.04)) document.title = "SLACK · " + m + " m";
-  } else { g.classList.remove("on"); $("#hud").innerHTML = scene === scenes.deck ? "<b>cable ship patience</b> · deck" : scene === scenes.room ? "<b>cable ship patience</b> · radio room" : ""; $("#salv").textContent = ""; }
+  } else { g.classList.remove("on"); $("#hud").innerHTML = (scene === scenes.deck ? "<b>cable ship patience</b> · deck" : scene === scenes.room ? "<b>cable ship patience</b> · radio room" : "") + (goal ? ` · <em>${goal}</em>` : ""); $("#salv").textContent = ""; }
 }
 function tick(dt) {
   if (started && scene) {
     now += dt; sceneT += dt;
     if (!pending) scene.step(dt);
-    pump();
+    pump(); tapTick();
     if (fade !== fadeTo) { fade = fadeTo > fade ? min(fadeTo, fade + dt * 2.2) : max(fadeTo, fade - dt * 1.6); $("#fade").style.opacity = fade; }
     if (pending && fade >= 1) { const p = pending; pending = null; enter(p.name, p.arg); fadeTo = 0; }
     if (cardT && now > cardT) { $("#card").classList.remove("on"); cardT = 0; }
     scene.draw(); E.render(env, px); ctx.putImageData(img, 0, 0); hud();
   }
-  hit.clear();
+  hit.clear(); anyTap = false;
 }
 function frame(ts) {
   const dt = min(0.05, (ts - last) / 1000 || 0.016);
@@ -957,10 +1034,15 @@ window.__slack = { D, RUN, you, room, deck, go, keys, hit, ptr, run(sec, held = 
 const DEV = { Digit1: ["deck", {}], Digit2: ["room", {}], Digit3: ["dive", {}], Digit4: ["dive", { x: 480, y: SB - 20 }], Digit5: ["dive", { x: 1090, y: SB - 20 }], Digit6: ["dive", { x: 1380, y: SB - 20 }] };
 addEventListener("keydown", (e) => { if (started && DEV[e.code] && e.shiftKey) go(...DEV[e.code]); });
 function begin(name, arg) { started = true; $("#go").classList.add("off"); $("#fade").style.opacity = 1; enter(name, arg); fadeTo = 0; }
-$("#go").addEventListener("click", () => { startAudio(); $("#go").classList.add("off"); go("deck", { intro: true }); });
+// three stages: a click for sound (as Fish asks), the cold open, then the title waits for you
+let stage_ = "wait";
+$("#go").addEventListener("click", () => {
+  if (stage_ === "wait") { startAudio(); $("#go").classList.add("off"); stage_ = "open"; begin("open"); }
+  else if (stage_ === "title") { $("#go").classList.add("off"); stage_ = "play"; go("deck", { intro: true }); }
+});
 // a direct link skips the title, so sound starts on the first key or click instead
 for (const ev of ["keydown", "pointerdown"]) addEventListener(ev, () => startAudio(), { once: true });
 if (qs.get("leg") === "2") Object.assign(RUN, { leg: 2, sleeve: true, salvage: 1 });   // jump to the second half
 if (qs.has("s")) begin(qs.get("s"), qs.has("x") ? { x: +qs.get("x"), y: +qs.get("y") } : qs.has("at") ? { at: +qs.get("at") } : {});
-else { started = true; enter("title"); fade = fadeTo = 0; $("#fade").style.opacity = 0; }
+else $("#go").classList.add("wait");
 requestAnimationFrame((ts) => { last = ts; frame(ts); });

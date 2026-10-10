@@ -297,6 +297,11 @@ export const seapig = { name: "seapig", frames: 6, box: [-0.6, -0.05, 0.6, 0.6],
   for (const z of [-0.07, 0, 0.07]) P.push(S(0.35, 0.15, z, 0.035, 0.84));
   return P;
 } };
+// a diver's writing slate, propped where someone meant it to be found
+export const slate = { name: "slate", box: [-0.45, -0.05, 0.45, 0.6], build: () => [
+  ...rotZ([B(0, 0.26, 0, 0.2, 0.17, 0.02, 0.02, (x, y) => (abs(x) < 0.15 && abs(((y * 13) % 1) - 0.5) < 0.2 && y > 0.14 && y < 0.4 ? 0.2 : 0.92))], 0.22, 0, 0.1),
+  E(-0.22, 0.07, -0.04, 0.16, 0.1, 0.14, 0.42), C(0.14, 0.4, 0.02, 0.3, 0.05, 0.06, 0.012, 0.6), S(0.3, 0.04, 0.06, 0.03, 0.8),
+] };
 export const starfish = { name: "starfish", box: [-0.42, -0.05, 0.42, 0.3], build: () => [
   S(0, 0.05, 0, 0.1, 0.84, 0.05), ...[0, 1, 2, 3, 4].map((i) => { const th = (i / 5) * TAU + 0.3; return C(0, 0.05, 0, cos(th) * 0.3, 0.035, sin(th) * 0.3, 0.06, 0.84, 0.06); }),
 ] };
@@ -339,4 +344,4 @@ export const jumper = { name: "jumper", box: [-0.5, -0.05, 0.5, 0.4], build: () 
   C(-0.2, 0.2, 0.1, 0.12, 0.2, -0.06, 0.05, 0.96), C(0.2, 0.2, 0.1, -0.12, 0.21, -0.06, 0.05, 0.9), TZ(0, 0.18, -0.16, 0.07, 0.02, 0.72),
 ] };
 
-export const ALL = { diver, swimmer, beacon, dumbo, seapig, bo, cat, gull, radio, desk, chair, mug, lampShade, drum, crate, sub, fish, jelly, turtle, octo, angler, crab, starfish, rock, helmet, pod, rov, kettle, barnacles, sleeve, jumper };
+export const ALL = { diver, swimmer, beacon, dumbo, seapig, slate, bo, cat, gull, radio, desk, chair, mug, lampShade, drum, crate, sub, fish, jelly, turtle, octo, angler, crab, starfish, rock, helmet, pod, rov, kettle, barnacles, sleeve, jumper };
