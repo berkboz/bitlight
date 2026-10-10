@@ -74,29 +74,113 @@ const actHit = () => hit.has("KeyE") || hit.has("Enter");
 const toolDown = () => keys.has("Space") || ptr.down;
 
 // ---------- audio ----------
-let ac, master, lp, seaGain;
+let ac, master, lp, seaGain, echoIn;
+// ---------- ambience ----------
+// Every place has air (or water) in it. Five beds of filtered noise and one motor run all the time
+// at whatever level the place asks for, and each place has its own scattered events: a gull, a bell
+// buoy, a drip, a whale a long way off. Nothing is a recording: it is all made here.
+const amb = { g: {}, f: {}, tgt: {}, ev: [], key: "", hum: null, humG: null, humT: 0 };
+const BEDS = { sea: ["lowpass", 460, 0.5], wind: ["bandpass", 620, 0.7], rain: ["highpass", 2600, 0.4], hiss: ["bandpass", 3400, 0.6], roar: ["lowpass", 150, 0.6] };
 function startAudio() {
   if (ac) return;
   try {
-    ac = new AudioContext(); master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination);
-    lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2400; lp.connect(master);
-    [55, 55.45, 82.4].forEach((f, i) => { const o = ac.createOscillator(); o.type = i % 2 ? "triangle" : "sawtooth"; o.frequency.value = f; const g = ac.createGain(); g.gain.value = 0.02; o.connect(g).connect(lp); o.start(); });
-    const buf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), d = buf.getChannelData(0);
+    ac = new AudioContext(); master = ac.createGain(); master.gain.value = 0.55; master.connect(ac.destination);
+    lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 5000; lp.connect(master);
+    // an echo to put distance on things: gulls, bells, drips, whales
+    const dl = ac.createDelay(1), fb = ac.createGain(), dlp = ac.createBiquadFilter();
+    echoIn = ac.createGain(); dl.delayTime.value = 0.34; fb.gain.value = 0.42; dlp.type = "lowpass"; dlp.frequency.value = 1700;
+    echoIn.connect(dl); dl.connect(dlp); dlp.connect(fb); fb.connect(dl); dlp.connect(lp);
+    [55, 55.45, 82.4].forEach((f, i) => { const o = ac.createOscillator(); o.type = i % 2 ? "triangle" : "sawtooth"; o.frequency.value = f; const g = ac.createGain(); g.gain.value = 0.012; o.connect(g).connect(lp); o.start(); });
+    const buf = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    const n = ac.createBufferSource(); n.buffer = buf; n.loop = true;
-    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 500; bp.Q.value = 0.4;
-    seaGain = ac.createGain(); seaGain.gain.value = 0; n.connect(bp).connect(seaGain).connect(lp); n.start();
+    for (const k in BEDS) {
+      const n = ac.createBufferSource(); n.buffer = buf; n.loop = true; n.playbackRate.value = 0.8 + Math.random() * 0.4;
+      const f = ac.createBiquadFilter(); f.type = BEDS[k][0]; f.frequency.value = BEDS[k][1]; f.Q.value = BEDS[k][2];
+      const g = ac.createGain(); g.gain.value = 0;
+      n.connect(f).connect(g).connect(lp); n.start(); amb.g[k] = g; amb.f[k] = f;
+    }
+    amb.hum = ac.createOscillator(); amb.hum.type = "sawtooth"; amb.hum.frequency.value = 46;
+    const hf = ac.createBiquadFilter(); hf.type = "lowpass"; hf.frequency.value = 190;
+    amb.humG = ac.createGain(); amb.humG.gain.value = 0; amb.hum.connect(hf).connect(amb.humG).connect(lp); amb.hum.start();
   } catch { ac = null; }
 }
-function tone(f, len, vol, type = "triangle", f2 = f * 0.4) {
+const rnd = (a, b) => a + Math.random() * (b - a);
+// the scattered sounds
+const snd = {
+  gull: () => { const n = 2 + floor(Math.random() * 3), f = rnd(1250, 1650); for (let i = 0; i < n; i++) tone(f * rnd(0.95, 1.08), rnd(0.16, 0.26), 0.04, "triangle", f * 0.62, i * rnd(0.26, 0.36), 0.6); },
+  bell: () => { tone(612, 2.4, 0.05, "sine", 606, 0, 0.7); tone(1228, 1.3, 0.016, "sine", 1220, 0, 0.5); },
+  creak: () => tone(rnd(58, 84), rnd(0.5, 0.9), 0.07, "sawtooth", rnd(42, 56)),
+  clink: () => tone(rnd(2300, 3100), 0.05, 0.03, "triangle", 1900, 0, 0.5),
+  drip: () => tone(rnd(1500, 2300), 0.05, 0.05, "sine", 880, 0, 0.8),
+  slap: () => tone(rnd(190, 260), 0.14, 0.05, "triangle", 110),
+  whale: () => { const f = rnd(150, 230); tone(f, 2.6, 0.05, "sine", f * 1.7, 0, 0.9); tone(f * 1.7, 2.0, 0.04, "sine", f * 0.8, 2.3, 0.9); },
+  bubble: () => { const f = rnd(420, 900); tone(f, 0.07, 0.03, "sine", f * 2.2, 0, 0.2); if (Math.random() < 0.5) tone(f * 1.3, 0.06, 0.02, "sine", f * 2.6, 0.08, 0.2); },
+  click: () => { for (let i = 0; i < 3; i++) tone(rnd(3200, 4600), 0.012, 0.02, "square", 2600, i * rnd(0.03, 0.07)); },
+  tick: () => tone(snd.tk++ % 2 ? 1750 : 2050, 0.014, 0.03, "square", 1500),
+  wiper: () => tone(260, 0.3, 0.025, "sawtooth", 170),
+  putter: () => { for (let i = 0; i < 9; i++) tone(rnd(54, 60), 0.05, 0.08, "square", 44, i * 0.11); },
+  car: () => { amb.swoosh = 2.4; },
+  tk: 0,
+};
+// what each place sounds like: bed levels, the lowpass over everything, and events as [min gap, max gap, sound]
+const AMB = {
+  home: { sea: 0, wind: 0.006, rain: 0.03, hiss: 0, roar: 0.012, lp: 2600, ev: [[0.5, 0.5, snd.tick], [9, 20, snd.car]] },
+  taxi: { sea: 0, wind: 0.01, rain: 0.04, hiss: 0, roar: 0.05, lp: 3000, ev: [[1.15, 1.15, snd.wiper]] },
+  takeoff: { sea: 0, wind: 0.04, rain: 0, hiss: 0.004, roar: 0.11, lp: 3000, ev: [] },
+  flight: { sea: 0, wind: 0.014, rain: 0, hiss: 0.003, roar: 0.06, lp: 2200, ev: [[7, 14, snd.creak]] },
+  boat: { sea: 0.06, wind: 0.03, rain: 0.025, hiss: 0, roar: 0, lp: 4200, ev: [[1, 1, snd.putter], [2.5, 6, snd.slap], [11, 20, snd.bell]] },
+  night: { sea: 0.07, wind: 0.034, rain: 0.035, hiss: 0, roar: 0, lp: 4600, ev: [[13, 28, snd.gull], [5, 12, snd.creak], [3.5, 9, snd.clink], [12, 24, snd.bell], [3, 7, snd.slap]] },
+  noon: { sea: 0.075, wind: 0.026, rain: 0, hiss: 0, roar: 0, lp: 5200, ev: [[3.5, 9, snd.gull], [6, 13, snd.creak], [4, 9, snd.clink], [14, 26, snd.bell], [3, 7, snd.slap]] },
+  room: { sea: 0.018, wind: 0.004, rain: 0.006, hiss: 0.009, roar: 0.006, lp: 1500, ev: [[7, 15, snd.creak], [16, 30, snd.bell]] },
+  bay: { sea: 0.022, wind: 0, rain: 0, hiss: 0, roar: 0.02, lp: 2400, ev: [[1.2, 4.2, snd.drip], [5, 12, snd.clink], [6, 14, snd.creak], [3, 8, snd.slap]] },
+  dive: { sea: 0, wind: 0, rain: 0, hiss: 0, roar: 0.01, lp: 1400, ev: [[0.7, 2.6, snd.bubble], [24, 46, snd.whale], [9, 22, snd.click]] },
+  end: { sea: 0, wind: 0, rain: 0, hiss: 0, roar: 0.006, lp: 600, ev: [[30, 50, snd.whale]] },
+};
+function ambScene(key) {
+  if (amb.key === key) return;
+  amb.key = key;
+  if (key !== "dive") amb.humT = 0;
+  const a = AMB[key];
+  amb.tgt = { ...a };
+  amb.ev = a.ev.map(([lo, hi, fn]) => ({ lo, hi, fn, t: rnd(lo * 0.3, hi) }));
+  if (lp && key !== "dive") lp.frequency.value = a.lp;
+}
+function ambTick(dt) {
   if (!ac) return;
-  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+  const swell = 0.7 + 0.3 * sin(now * 0.55) * sin(now * 0.17 + 1), k = Math.min(1, dt * 1.6);
+  if (amb.swoosh > 0) amb.swoosh -= dt;                                            // a car going by in the wet, outside
+  for (const name in amb.g) {
+    let v = amb.tgt[name] || 0;
+    if (name === "sea") v *= swell;
+    if (name === "roar" && amb.swoosh > 0) v += 0.03 * sin((amb.swoosh / 2.4) * PI);
+    amb.g[name].gain.value += (v - amb.g[name].gain.value) * k;
+  }
+  amb.f.wind.frequency.value = 520 + 260 * sin(now * 0.23) + 120 * sin(now * 0.71);   // the wind never holds a note
+  amb.humG.gain.value += (amb.humT - amb.humG.gain.value) * Math.min(1, dt * 3);
+  for (const e of amb.ev) { e.t -= dt; if (e.t <= 0) { e.t = rnd(e.lo, e.hi); e.fn(); } }
+}
+function tone(f, len, vol, type = "triangle", f2 = f * 0.4, at = 0, wet = 0) {
+  if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + at;
   o.type = type; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(max(20, f2), t + len);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + len);
   o.connect(g).connect(lp || master); o.start(t); o.stop(t + len + 0.02);
+  if (wet && echoIn) { const w = ac.createGain(); w.gain.value = wet; g.connect(w).connect(echoIn); }
 }
 const knock = (f = 110, len = 0.14, vol = 0.4) => tone(f, len, vol);
-const ping = () => tone(880, 1.8, 0.05, "sine", 870);
+// ---------- small sounds: every press answers, and everyone who is not the radio has a noise of their own ----------
+const sfx = {
+  use: () => { tone(540, 0.04, 0.1, "square", 420); tone(270, 0.07, 0.1, "triangle", 200, 0.03); },      // E, and something happened
+  nope: () => tone(120, 0.09, 0.1, "triangle", 90),                                                   // E, and nothing to use
+  tick: () => tone(1250, 0.02, 0.03, "square", 1100),                                                 // something has come into reach
+  thing: () => tone(210, 0.09, 0.13, "triangle", 150),                                                // an object, considered
+  // Bo does not so much speak as rumble: a few low syllables, one per word or so
+  grumble: (text) => { const n = clamp(text.split(" ").length, 3, 9); for (let i = 0; i < n; i++) tone(92 + Math.random() * 58, 0.07 + Math.random() * 0.06, 0.13, "sawtooth", 66 + Math.random() * 30, i * 0.115 + Math.random() * 0.03); },
+  meow: () => { tone(640, 0.18, 0.11, "triangle", 1080); tone(1080, 0.3, 0.11, "triangle", 470, 0.15); },
+  hiss: () => { for (let i = 0; i < 6; i++) tone(1800 + Math.random() * 2200, 0.05, 0.035, "sawtooth", 900, i * 0.07); },
+};
+const noiseOf = (who, text) => (who === "bo" ? sfx.grumble(text) : who === "the cat" ? sfx.meow() : who === "· static ·" ? sfx.hiss() : sfx.thing());
+const ping = () => tone(880, 1.8, 0.05, "sine", 870, 0, 0.8);
 const blip = () => tone(118 + Math.random() * 46, 0.07, 0.11, "triangle", 100);   // the old man, when a line has no recording
 // his recorded lines live in voice/<hash of the text>.mp3 (see voice.mjs); a line without one falls back to blips
 const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); };
@@ -127,10 +211,23 @@ let now = 0;
 const HUSH = 5;                                            // seconds of nothing between lines that can wait
 const band = { q: [], cur: null, shownAt: 0, lastEnd: -9, said: new Set(), done: new Set(), n: 0 };
 // who: "radio" (the old man), or a name for a caption
-function say(text, { id = text, who = "radio", gap = 1.6, urgent = false, red = false, keep = false } = {}) {
+function say(text, { id = text, who = "radio", gap = 1.6, urgent = false, red = false, keep = false, once = false, then = false, flow = false } = {}) {
+  if (who !== "radio" && who !== "the office") {
+    // not the old man: a subtitle in the picture, now, with that speaker's own noise. No queue to wait in.
+    if (once) { if (band.said.has(id)) return false; band.said.add(id); }
+    cap(text, who, red, then);
+    return true;
+  }
   if (band.said.has(id)) return false;
   band.said.add(id);
-  const m = { text, id, who, gap, red, keep, urgent, born: now };
+  if (urgent && band.cur) {
+    // you did something and he has something to say about it: he says it now, not after the current line.
+    // A scripted line that gets cut off is forgotten, so whoever was telling it will start it again.
+    if (band.cur.who === "radio" || band.cur.who === "the office") { band.said.delete(band.cur.id); if (voiceEl) voiceEl.pause(); }
+    band.q = band.q.filter((m) => !m.urgent || m.keep);
+    band.cur = null; $("#say").textContent = ""; $("#log").textContent = ""; band.lastEnd = now - 10;
+  }
+  const m = { text, id, who, gap, red, keep, urgent, flow, born: now };
   urgent ? band.q.unshift(m) : band.q.push(m);
   return true;
 }
@@ -138,7 +235,7 @@ const talking = () => !!band.cur && band.cur.who === "radio" && band.n < band.cu
 function pump() {
   const b = band;
   if (b.cur && now - b.shownAt > b.cur.hold) { b.done.add(b.cur.id); b.cur = null; $("#say").textContent = ""; $("#log").textContent = ""; b.lastEnd = now; }
-  if (!b.cur && b.q.length && now - b.lastEnd > (b.q[0].urgent ? b.q[0].gap : Math.max(b.q[0].gap, HUSH))) {
+  if (!b.cur && b.q.length && now - b.lastEnd > (b.q[0].urgent || b.q[0].flow ? b.q[0].gap : Math.max(b.q[0].gap, HUSH))) {
     const m = b.q.shift();
     b.cur = m; b.n = 0; m.hold = max(2.6, m.text.length * 0.062 + 1.1); b.shownAt = now;
     if (m.who === "radio" || m.who === "the office") speak(m);
@@ -159,7 +256,27 @@ function placeMark() {
   m.style.setProperty("--a", (off ? (Math.atan2(y - cy, x - cx) * 180) / PI - 90 : 0) + "deg");
   m.classList.add("on"); m.classList.toggle("away", off);
 }
-const prompt = (label) => { const p = $("#prompt"); if (label) { p.innerHTML = TOUCH ? label.replace("hold space", "hold ●") : label; p.classList.add("on"); } else p.classList.remove("on"); };
+let lastPrompt = "";
+const prompt = (label) => {
+  const p = $("#prompt");
+  if (label) { if (label !== lastPrompt) sfx.tick(); p.innerHTML = TOUCH ? label.replace("hold space", "hold ●") : label; p.classList.add("on"); } else p.classList.remove("on");
+  lastPrompt = label || "";
+};
+// captions: side characters and things. Shown at once; a new one replaces the old; `then` waits its turn.
+const capQ = [];
+let capT = 0;
+function cap(text, who, red, then) {
+  if (then && now < capT) { capQ.push([text, who, red]); return; }
+  capQ.length = then ? capQ.length : 0;
+  const c = $("#cap");
+  c.querySelector("b").textContent = who; c.querySelector("span").textContent = text;
+  c.classList.add("on"); c.classList.toggle("red", !!red);
+  capT = now + Math.max(2.2, text.length * 0.055 + 1.2);
+  noiseOf(who, text);
+}
+function capTick() {
+  if (capT && now > capT) { capT = 0; $("#cap").classList.remove("on"); if (capQ.length) cap(...capQ.shift()); }
+}
 let cardT = 0;
 function card(html, secs = 4, low = false) { const c = $("#card"); c.innerHTML = html; c.classList.add("on"); c.classList.toggle("low", low); cardT = now + secs; }
 
@@ -169,6 +286,7 @@ let scene = null, sceneT = 0, fade = 1, fadeTo = 0, pending = null;
 function go(name, arg) { if (pending) return; pending = { name, arg }; fadeTo = 1; }
 function enter(name, arg) {
   // lines still waiting belong to the place you just left: forget them, so they can be said again there
+  capQ.length = 0; capT = 0; $("#cap").classList.remove("on"); lastPrompt = "";
   for (const m of band.q) if (!m.keep) band.said.delete(m.id);
   band.q = band.q.filter((m) => m.keep);
   scene = scenes[name]; sceneT = 0; markAt = null; prompt(null); showG(false); document.body.classList.remove("cine"); scene.enter(arg || {}); }
@@ -206,7 +324,7 @@ scenes.deck = {
     d.intro = intro ? 7.5 : 0;
     d.gull = { x: 262, y: DF - 28, fly: 0, t: 0 };
     if (intro) { document.body.classList.add("cine"); cam.x = DW - COLS; }
-    else if (d.ch === 2 && !at) { cam.x = 0; card("the same day · 13:10", 4); say("Up she comes. Mind your head. Mind his, too.", { id: "upshe", who: "bo" }); }
+    else if (d.ch === 2 && !at) { cam.x = 0; card("the same day · 13:10", 4); say("Up she comes. Mind your head. Mind his, too.", { id: "upshe", who: "bo", once: true }); }
     if (seaGain) seaGain.gain.value = 0.05;
     if (lp) lp.frequency.value = 2400;
   },
@@ -225,19 +343,19 @@ scenes.deck = {
     goal = two ? "report to the radio room" : "find the radio room"; markAt = [652, DF - 66];
     if (floor(now / 26) !== floor((now - dt) / 26) && !two) tone(74, 2.6, 0.07, "sawtooth", 70);          // a horn, somewhere in the fog
     if (intro) return;
-    if (!two) { say("You're the diver. He's been asking for you. By name.", { id: "hook1", who: "bo", urgent: true }); say("Nobody here told him your name.", { id: "hook2", who: "bo", gap: 0.6, urgent: true }); }
+    if (!two) { say("You're the diver. He's been asking for you. By name.", { id: "hook1", who: "bo", once: true }); say("Nobody here told him your name.", { id: "hook2", who: "bo", once: true, then: true }); }
     // nobody makes you go below. They do mention it.
     if (!two) {
-      if (sceneT > 70) say("He's waiting, you know. He's very good at it.", { id: "wait1", who: "bo" });
+      if (sceneT > 70) say("He's waiting, you know. He's very good at it.", { id: "wait1", who: "bo", once: true });
     }
-    if (you.x <= 32) say("That's the edge of the ship. Past it is the job.", { id: "edge", who: "you think" });
+    if (you.x <= 32) say("That's the edge of the ship. Past it is the job.", { id: "edge", who: "you think", once: true });
     const BO = two
       ? ["You came back up. Most do.", "He talks about that old cable like it owes him a letter.", "Mind the wet bit. Different wet bit."]
       : ["Hear that, through the deck? It's been coming up the cable since it died. Don't ask me what it spells.", "He's been on that radio since before I signed on. Before the ship did, maybe.", "Every clock aboard stopped at twelve past three. Mine too. Mind the wet bit."];
     const list = [
       { x: 190, r: 30, label: "the crane", act: () => say("It lowers things over the side. Lately they stay there.", { id: "dcrane" + floor(now / 9), who: "the crane" }) },
       { x: 340, r: 28, label: "the drum", act: () => say("The slack. Forty kilometres of spare cable, for when things go wrong. Things go wrong.", { id: "ddrum" + floor(now / 9), who: "the slack" }) },
-      { x: 452, r: 22, label: "the cat", act: () => { say(two ? "The cat has not moved. The cat has been very busy." : "The cat does not work here. The cat believes it does.", { id: "dcat" + floor(now / 9), who: "the cat" }); knock(520, 0.2, 0.08); } },
+      { x: 452, r: 22, label: "the cat", act: () => { say(two ? "The cat has not moved. The cat has been very busy." : "The cat does not work here. The cat believes it does.", { id: "dcat" + floor(now / 9), who: "the cat" }); } },
       { x: d.bo.x, r: 26, label: "talk to Bo", act: () => { say(BO[d.bo.n % 3], { id: "bo" + d.ch + d.bo.n, who: "bo" }); d.bo.n++; } },
       { x: 652, r: 20, label: "go below", act: () => { knock(140, 0.2, 0.3); go("room"); } },
     ];
@@ -247,6 +365,7 @@ scenes.deck = {
   },
   draw() {
     const t = now, H0 = 104 + sin(t * 0.7) * 2, d = deck, noon = d.ch === 2;
+    ambScene(noon ? "noon" : "night");
     // dawn, then the same day at one o'clock: the sun climbs, shrinks and stops being the horizon's business
     const sunX = (noon ? 300 : 276) - cam.x * 0.05, sunY = noon ? 34 : H0 - 12, sunR = noon ? 7 : 12;
     env.holes = false; env.tones = 16; env.screen = "diagonal"; env.lit = noon ? [252, 244, 228] : WARM.lit; env.unlit = noon ? [38, 34, 36] : WARM.unlit; env.amb = noon ? 0.44 : 0.36; env.ambRow = null;
@@ -332,7 +451,7 @@ function tell(st, lines) {
   if (st.i >= lines.length) return true;
   const l = lines[st.i];
   if (l.when && !l.when()) return false;
-  if (!band.said.has(l.id)) say(typeof l.text === "function" ? l.text() : l.text, { id: l.id, who: l.who || "radio", gap: l.who ? 0.7 : 1.6, urgent: !!l.who });
+  if (!band.said.has(l.id)) say(typeof l.text === "function" ? l.text() : l.text, { id: l.id, who: l.who || "radio", gap: l.who ? 0.7 : 1.3, flow: true });   // a told sequence keeps its own rhythm
   else if (band.done.has(l.id)) st.i++;
   return false;
 }
@@ -340,7 +459,8 @@ const BRIEF = [
   { id: "b0", text: "Ah. There you are. I'd know that walk anywhere. Mind the step. There isn't one." },
   { id: "b1", text: "Sit down, if you like." },
   { id: "b2", when: () => you.sit || (room.wait && now - room.wait > 8), text: () => (you.sit ? "Thank you. People used to sit all the time." : "Or stand. Standing is also a way of listening.") },
-  { id: "b3", text: "A cable has gone quiet. Four thousand metres down. I'd like to know why." },
+  { id: "b3", text: "The cable under this ship carries half an ocean's worth of talk. At 03:12 it stopped." },
+  { id: "b3a", text: "Your job is to go down, follow it, and find where it's broken. You laid it. You know the way." },
   { id: "b3b", text: "Something on it is still tapping. I'd rather you didn't count the taps." },
   { id: "b5", text: "Follow the line. Bring me the first thing that looks wrong." },
   { id: "b6", text: "The hatch is by the wall." },
@@ -357,7 +477,8 @@ function debrief() {
   const cut = RUN.cutIds.filter((id) => QUIET[id]);
   if (cut.length) cut.forEach((id) => L.push({ id: "dq" + id, text: QUIET[id] }));
   else L.push({ id: "dq0", text: "And nothing went quiet on the way. I noticed. Thank you." });
-  L.push({ id: "d3", text: "But a shark didn't stop the line. The break is past the edge. All the way down." });
+  L.push({ id: "d3", text: "But a bite doesn't stop a cable. The break is past the edge, at the bottom, where yours crosses an older one." });
+  L.push({ id: "d4", text: "Go down and find it. Then it's up to you." });
   return L;
 }
 scenes.room = {
@@ -401,8 +522,8 @@ scenes.room = {
     ];
     // the dive log, once you have been down: yesterday's entry is in your handwriting
     if (two) list.push({ x: 244, r: 9, label: "the dive log", act: () => {
-      say("Yesterday, in your handwriting: 'cut made. not logged.'", { id: "log" + floor(now / 15), who: "dive log", urgent: true, red: true });
-      say("Ah. You found that. We don't need to talk about it. We could, though.", { id: "logr" }); RUN.logSeen = true;
+      say("Nine years ago, in your handwriting: 'crossed an old cable at 4,000 m. it was warm. not logged.'", { id: "log", who: "the dive log", red: true });
+      say("Ah. You found that. You never did tell them. I was grateful.", { id: "logr", urgent: true }); RUN.logSeen = true;
     } });
     const n = you.sit ? list.find((o) => o.x === 158) : nearest(list, you.x);
     prompt(n ? `<kbd>E</kbd>${n.label}` : null);
@@ -410,7 +531,7 @@ scenes.room = {
   },
   draw() {
     const t = now, r = room, bob = sin(t * 0.7) * 2;
-    tapVol = 0.035;
+    tapVol = 0.035; ambScene("room"); amb.tgt.hiss = talking() ? 0.02 : 0.009;      // the radio hisses a little more when he is on it
     env.holes = false; env.tones = 8; env.screen = "bayer"; env.lit = [255, 228, 180]; env.unlit = [20, 14, 11]; env.amb = 0.13; env.ambRow = null; env.sun = null;
     env.outline = "light"; env.haloMin = 0.2; env.cut = 0; env.fog = 0;
     env.lights = [{ x: r.lampX, y: 62, z: 22, p: 3.9, k: 0.00055 }, { x: 84, y: 66, z: 46, p: 1.2, k: 0.001 }];
@@ -486,6 +607,14 @@ const branches = () => [
   { id: "C", x0: 1790, x1: 1886, side: -1, lift: 24, dur: 1.2, who: "MAREA-4 · Lisbon · nothing changed. MAREA-5 ran alongside, unbothered.", line: "Two cables, one job. I'm not cross. I'm just disappointed in the spare." },
 ];
 const bl = (b, x) => cl(x) + b.side * b.lift * sin(clamp((x - b.x0) / (b.x1 - b.x0), 0, 1) * PI);
+// What he tells you at the break. This is the story, said once, in plain words.
+const FINAL = [
+  "There you are. You can hear me properly now. That isn't the radio. It's the old line.",
+  "It was laid in 1858. It worked for three weeks. I was the operator at this end, and I never stopped listening.",
+  "A hundred and sixty-eight years. I kept asking if anyone was there. Then your cable came down across mine, full of voices. None of them for me.",
+  "So I broke it. I am sorry. It was the only way anyone would come, and you were the only one who ever had.",
+  "Mend yours, and they all get their voices back. Or cut mine, and I can stop asking. I won't mind which.",
+];
 const SMASH = ["Gently with the barnacles. They've held on a long time.", "Easy, easy. I know it's satisfying. So is tea, and quieter.", "Mind that. It's older than us both."];
 function diveReset() {
   Object.assign(D, {
@@ -504,7 +633,7 @@ function diveReset() {
     jellies: Array.from({ length: 6 }, (_, i) => ({ x: 420 + i * 150 + hash(i, 4) * 60, y: 110 + hash(i, 5) * 80, ph: hash(i, 6) * 8 })),
     turtle: { x: 60, y: 44 }, crab: { x: 668, dir: 1 }, octo: { hide: 0 }, angler: { x: 1370, y: SB + 330 },
     dumbos: [{ x: 1312, y: SB + 130 }, { x: 1380, y: SB + 250 }, { x: 1300, y: SB + 420 }], pig: { x: 1900, dir: 1 }, thin: false, creak: 0,
-    leg: RUN.leg, shipX: 40, deepest: 0, wallT: 0, wallN: 0, topT: 0,
+    leg: RUN.leg, shipX: 40, deepest: 0, wallT: 0, wallN: 0, topT: 0, choice: 0,
   });
 }
 // fixed things with something to say: [x, lane offset from the cable, figure, line]
@@ -768,7 +897,7 @@ scenes.dive = {
       const ds = hypot(me.x - s.x, me.y - (s.y + 12));
       if (target) {
         target.hot = 1;
-        pr = `<kbd>hold space</kbd>${target.id ? "cut" : target.act === "collect" ? "take" : target.act === "read" ? "read" : "smash"}`;
+        pr = `<kbd>hold space</kbd>${target.id ? "cut" : { collect: "take", read: "read", mend: "mend your cable", cutold: "cut the old line" }[target.act] || "smash"}`;
         if (!toolDown()) D.latch = false;
         if (toolDown() && !D.latch) {
           target.prog += dt; target.shake = 1;
@@ -798,18 +927,29 @@ scenes.dive = {
       // static, a creak from the hull, and one try at a sentence that does not make it
       if (Math.random() < dt * 0.25) tone(2200 + Math.random() * 1800, 0.05 + Math.random() * 0.12, 0.03, "sawtooth", 900);
       D.creak -= dt; if (D.creak < 0) { D.creak = 7 + Math.random() * 9; tone(48 + Math.random() * 14, 0.9, 0.16, "sawtooth", 40); }
-      if (who.y > SB + DROP * 0.45) say("…-ollow the l— …n't count th— …", { id: "garble", who: "· static ·" });
+      if (who.y > SB + DROP * 0.45) say("…-ollow the l— …n't count th— …", { id: "garble", who: "· static ·", once: true });
     }
-    if (!D.ended && nearX(SPLICE, 40)) {
+    if (!D.ended && nearX(SPLICE, 46)) {
       D.ended = true;
-      ["…there you are. You can hear me again.", "That isn't the radio. It's the line. It's still warm.", "An old telegraph cable, laid in 1858. Somebody had to keep it lit.", "I was its last operator. I have been asking the same thing ever since."].forEach((l, i) => say(l, { id: "final" + i, gap: 2.4, urgent: i === 0 }));
+      FINAL.forEach((l, i) => say(l, { id: "final" + i, gap: 1.5, flow: true, urgent: i === 0 }));
     }
-    if (D.ended && band.done.has("final3")) go("end", { salvage: RUN.salvage + D.salvage, cuts: RUN.cuts.concat(D.cuts) });
+    if (D.ended && !D.choice && band.done.has("final" + (FINAL.length - 1))) {
+      // two things within reach: the broken ends of your cable, and his
+      D.choice = now;
+      D.things.push({ kind: "mend", x: SPLICE - 4, dl: 0, act: "mend", dur: 1.8, gone: false, prog: 0, hot: 0, shake: 0 }, { kind: "old", x: SPLICE + 46, dl: 0, act: "cutold", dur: 1.8, gone: false, prog: 0, hot: 0, shake: 0 });
+    }
+    if (D.choice) {
+      goal = "mend your cable, or cut his"; markAt = [SPLICE + 20, ground(SPLICE, cl(SPLICE)) - 20];
+      if (now - D.choice > 55) say("Take your time. I have.", { id: "choose" });
+    }
     if (floor(now / 6) !== floor((now - dt) / 6) && who.y > 60) ping();
     if (lp) lp.frequency.value = lerp(1400, 120, clamp(who.y / (SB2 * 0.8), 0, 1));
   },
   draw() {
     const t = now, s = D.sub, me = D.me, who = D.mode === "eva" ? me : s;
+    // the water: surf fades as you leave the surface, the motor follows the throttle, and the deep is slower and lower
+    ambScene("dive"); amb.tgt.sea = 0.05 * max(0, 1 - max(0, who.y) / 110); amb.tgt.roar = 0.008 + 0.02 * clamp(who.y / SB2, 0, 1);
+    amb.humT = D.mode === "sub" ? 0.012 + 0.03 * min(1, hypot(s.vx, s.vy) / 60) : 0.006; if (amb.hum) amb.hum.frequency.value = 40 + hypot(s.vx, s.vy) * 0.28;
     // with the GPU floor under us, both layers must sit on the same whole cell
     const cx0 = cam.x, cy0 = cam.y, G = SB - cy0 < ROWS + 30 ? gpuView() : null;
     if (G) { cam.x = Math.round(cx0); cam.y = Math.round(cy0); }
@@ -896,7 +1036,7 @@ scenes.dive = {
     { const ln = cl(520) - 14; E.lane(ln); draw(F.rock, { s: 3 }, 520, ground(520, ln) + 3, { size: 26, z: -6 }); draw(F.octo, { f: floor(t * 6) % 8, hide: D.octo.hide }, 522, ground(520, ln) - 12, { size: SZ, z: 2 }); }
     { const ln = cl(D.crab.x) + 16; E.lane(ln); draw(F.crab, { f: floor(t * 8) % 4 }, D.crab.x, ground(D.crab.x, ln), { size: SZ }); }
     for (const th of D.things) {
-      if (th.gone) continue;
+      if (th.gone || !th.def) continue;
       const ln = cl(th.x) + th.dl, sx = th.shake ? (Math.random() - 0.5) * 1.8 : 0;
       E.lane(ln); draw(th.def, th.kind === "pod" ? { on: sin(t * 3) > 0 ? 1 : 0 } : {}, th.x + sx, ground(th.x, ln) - (th.up || 0), { size: SZ, z: 1, glow: 0.16 * th.hot * (0.6 + 0.4 * sin(t * 14)) });
     }
@@ -937,7 +1077,8 @@ scenes.dive = {
 function finish(t) {
   if (t.id) {
     t.cut = true; D.quiet++; D.cuts.push(t.who);
-    say(t.line, { id: "cut" + t.id, who: t.who, urgent: true, gap: 0.4, red: true });
+    cap(t.who, "gone quiet", true);
+    say(t.line, { id: "cut" + t.id, urgent: true, gap: 0.4 });
     knock(70, 0.5, 0.6);
     const x = (t.x0 + t.x1) / 2, y = ground(x, bl(t, x));
     for (let i = 0; i < 16; i++) D.debris.push({ x, y, vx: (Math.random() - 0.5) * 60, vy: -Math.random() * 30, life: 0.9 });
@@ -945,8 +1086,14 @@ function finish(t) {
   }
   if (t.act === "read") {
     t.read = true; RUN.slate = true; knock(300, 0.3, 0.2);
-    say("IF YOU ARE READING THIS, YOU CAME BACK. DON'T CUT IT THIS TIME.", { id: "slate", who: "a diver's slate, in your handwriting", urgent: true, red: true });
-    say("Ah. You weren't meant to find that. Not yet. Possibly not at all.", { id: "slater" });
+    say("OLD CABLE UNDER OURS AT THE BOTTOM. IT IS WARM. TOLD NO ONE.", { id: "slate", who: "a diver's slate, in your handwriting", red: true });
+    say("You wrote that nine years ago, when you laid this one. I watched you write it.", { id: "slater", urgent: true });
+    return;
+  }
+  if (t.act === "mend" || t.act === "cutold") {
+    // the one decision that is yours
+    knock(t.act === "mend" ? 220 : 70, 0.6, 0.6);
+    go("epilogue", { end: t.act === "mend" ? "mend" : "cut", salvage: RUN.salvage + D.salvage, cuts: RUN.cuts.concat(D.cuts) });
     return;
   }
   t.gone = true;
@@ -966,23 +1113,68 @@ function finish(t) {
 // =====================================================================================
 // END
 // =====================================================================================
+const EPI = {
+  mend: [
+    "You mended it.",
+    "At 06:40 the cable came back. An ocean's worth of people went on with their morning, and none of them knew it had stopped.",
+    "Under it, the old line is still warm. He is still there, still tapping the one word he has tapped for 168 years.",
+    "A N Y O N E ?",
+    "You kept the radio room. Some nights, you tap back.",
+  ],
+  cut: [
+    "You cut the old line.",
+    "The tapping stopped. It had been going for 168 years. The word was",
+    "A N Y O N E ?",
+    "Then you mended the other cable, because that was the job. At 06:40 the world came back and never knew.",
+    "The radio on the ship has said nothing since. Bo plugged it in, to be sure.",
+  ],
+};
+const epi = { i: 0, t: 0, end: "mend", arg: {} };
+scenes.epilogue = {
+  enter(arg) { Object.assign(epi, { i: 0, t: 0, end: arg.end || "mend", arg }); cam.x = cam.y = 0; goal = ""; document.body.classList.add("cine"); },
+  step(dt) {
+    const e = epi, L = EPI[e.end];
+    document.body.classList.add("cine");
+    if (e.t === 0) { const c = $("#card"); card(L[e.i], 999); c.classList.add("story"); c.classList.toggle("word", L[e.i].startsWith("A N Y")); }
+    e.t += dt;
+    if (e.t > 3.2 + L[e.i].length * 0.055 || (e.t > 1 && (actHit() || anyTap || hit.has("Space")))) {
+      e.i++; e.t = 0;
+      if (e.i >= L.length) { e.i = L.length - 1; e.t = 99; $("#card").classList.remove("on", "story", "word"); cardT = 0; go("end", e.arg); }
+    }
+  },
+  draw() {
+    const t = now, e = epi, alive = e.end === "mend", on = alive && tapAt(t), CY = (x) => 176 + sin(x * 0.02) * 4;
+    ambScene("end"); tapVol = alive ? 0.22 : 0;
+    env.holes = false; env.tones = 4; env.screen = "bayer"; env.lit = [200, 226, 224]; env.unlit = [2, 6, 9]; env.amb = 0.05; env.ambRow = null; env.sun = { d: [0, -0.96, 0.28], p: 0.1 };
+    env.outline = "light"; env.haloMin = 0.085; env.cut = 0.02; env.fog = 0; env.bg = () => 0;
+    env.lights = [{ x: 150, y: CY(150) - 30, z: 30, p: 1.6, k: 0.0016 }];
+    if (alive) env.lights.push({ x: 268, y: CY(268) - 3, z: 8, p: 0.2 + 1.2 * on, k: 0.004, red: 1 });
+    E.clear(); layer(1, 0);
+    for (let n = 0; n < 110; n++) dot(hash(n, 11) * COLS, (hash(n, 12) * ROWS + t * (1 + hash(n, 13) * 3)) % ROWS, 0, { e: 0.18 });
+    fillBelow((x) => CY(x) + 6, 0.36, 0.16, { z: -20 });
+    for (let x = 0; x < COLS; x += 6) seg(x, CY(x), x + 6.5, CY(x + 6), 3, 0.86, { z: -6 });                        // yours: whole again
+    for (let x = 180; x < 340; x += 6) { if (!alive && abs(x - 264) < 10) continue; seg(x, CY(x) + 9 + (x - 180) * 0.03, x + 6.5, CY(x + 6) + 9 + (x - 174) * 0.03, 1.6, 0.45, { z: -4 }); }   // his, under it
+    if (alive) disc(268, CY(268) + 10, 4.5, 0.3, { e: 0.14 + 0.85 * on, red: 1, round: 1 });
+  },
+};
 scenes.end = {
-  enter({ salvage = 0, cuts = [] }) {
-    cam.x = 0; cam.y = 0;
-    // the bill: what you brought up, and what you switched off on the way
-    const quiet = cuts.length ? "gone quiet\n" + cuts.map((c) => "<small>" + c + "</small>").join("\n") : "nothing went quiet. he noticed.";
-    card(`<b>SLACK</b>one day, two dives\n\nbrought up ${salvage} of 2\n${quiet}\n\nwhat it was tapping, all this time\n<small>${WORD.split("").join(" ")}</small>\n\nR · dive again`, 9999);
+  enter({ salvage = 0, cuts = [], end = "mend" }) {
+    cam.x = 0; cam.y = 0; this.alive = end === "mend";
+    // the bill: what you chose, and what you switched off on the way
+    const quiet = cuts.length ? `on the way down you also cut ${cuts.length} working cable${cuts.length > 1 ? "s" : ""}. gone quiet:\n` + cuts.map((c) => "<small>" + c + "</small>").join("\n") : "you cut nothing that was working. he noticed.";
+    card(`<b>SLACK</b>${this.alive ? "you mended the cable. he is still on the line." : "you cut the old line. he has stopped asking."}\n\n${quiet}\n\nR · play again, and choose the other way`, 9999);
     goal = "";
   },
   step() { if (hit.has("KeyR")) location.reload(); },
   draw() {
     const t = now;
+    ambScene("end"); amb.humT = 0;
     env.holes = false; env.tones = 2; env.screen = "noise"; env.lit = [216, 210, 196]; env.unlit = [4, 4, 4]; env.amb = 0; env.ambRow = null; env.sun = null; env.lights = []; env.outline = null; env.cut = 0.03; env.fog = 0; env.bg = () => 0;
     E.clear(); layer(1, 0);
     for (let n = 0; n < 120; n++) dot(hash(n, 11) * COLS, (hash(n, 12) * ROWS + t * (1 + hash(n, 13) * 3)) % ROWS, 0, { e: 0.25 });
-    for (let x = 0; x < COLS; x += 6) seg(x, 198 + sin(x * 0.02) * 4, x + 6.5, 198 + sin((x + 6) * 0.02) * 4, 1.6, 0, { e: 0.3 });
-    tapVol = 0.24;
-    disc(COLS / 2, 196, tapAt(t) ? 5.5 : 3, 0, { e: tapAt(t) ? 1 : 0.25, red: 1 });
+    for (let x = 0; x < COLS; x += 6) seg(x, 209 + sin(x * 0.02) * 2, x + 6.5, 209 + sin((x + 6) * 0.02) * 2, 1.6, 0, { e: 0.3 });
+    tapVol = this.alive ? 0.24 : 0;
+    if (this.alive) disc(COLS / 2, 208, tapAt(t) ? 4 : 2.2, 0, { e: tapAt(t) ? 1 : 0.25, red: 1 });
   },
 };
 
@@ -999,7 +1191,7 @@ const skyline = (x, j, base, tall) => {
 const home = { st: 0, s: { i: 0 }, ringAt: 0, ring: false, bag: false };
 const OFFICE = [ /*OFFICE*/
   { id: "o0", who: "the office", text: "It's the office. Sorry about the hour." },
-  { id: "o1", who: "the office", text: "A cable went quiet in the North Atlantic. The repair ship wants a diver." },
+  { id: "o1", who: "the office", text: "The Atlantic cable went dead at 03:12. The one you laid. The repair ship wants a diver." },
   { id: "o2", who: "the office", text: "They asked for you. By name. I said you'd retired. They said you'd say that." },
   { id: "o3", who: "the office", text: "There's a car outside. Bring your bag." },
 /*OFFICE*/ ];
@@ -1045,7 +1237,7 @@ scenes.home = {
   },
   draw() {
     const t = now, h = home;
-    tapVol = 0;
+    tapVol = 0; ambScene("home");
     env.holes = false; env.tones = 8; env.screen = "bayer"; env.lit = [246, 228, 198]; env.unlit = [12, 11, 17]; env.amb = 0.11; env.ambRow = null; env.sun = null;
     env.outline = "light"; env.haloMin = 0.17; env.cut = 0; env.fog = 0;
     env.lights = [{ x: 268, y: HF - 46, z: 16, p: 2.5, k: 0.0011 }, { x: 110, y: 76, z: 34, p: 0.9, k: 0.0011 }, { x: you.x, y: HF - 22, z: 36, p: 0.4, k: 0.004 }];
@@ -1114,7 +1306,8 @@ scenes.trip = {
     const t = now, tr = trip, vt = min(tr.t, 20), FN = [0, -0.86, 0.5];
     env.holes = false; env.tones = 8; env.screen = "bayer"; env.lit = [236, 232, 220]; env.unlit = [8, 11, 18]; env.amb = 0.09; env.ambRow = null; env.sun = null;
     env.outline = "light"; env.haloMin = 0.14; env.cut = 0.015; env.fog = 0; env.lights = [];
-    tapVol = tr.v === 2 ? 0.16 : 0;
+    tapVol = tr.v === 2 ? 0.16 : 0; ambScene(["taxi", "takeoff", "flight", "boat"][tr.v]);
+    if (tr.v === 1) amb.tgt.roar = 0.05 + 0.02 * vt;
     E.clear();
     if (tr.v === 0) {
       // a taxi through the rain: street lamps come and go, the city slides by behind
@@ -1205,7 +1398,7 @@ scenes.bay = {
         if (you.plain) { you.plain = false; knock(160, 0.3, 0.3); say("The fourth locker. Your name, on tape gone yellow.", { id: "locker", who: "the lockers", red: true }); }
         else say("Three other names. You don't know any of them. You think.", { id: "lock2" + floor(now / 9), who: "the lockers" });
       } },
-      { x: 180, r: 20, label: "talk to Bo", act: () => { say(["He'll want you in the water before the light changes.", "I lower it. I don't ask what comes back up.", "The last diver? You'd have to ask him. You'd have to ask you."][b.n % 3], { id: "bay" + b.n, who: "bo" }); b.n++; } },
+      { x: 180, r: 20, label: "talk to Bo", act: () => { say(["He'll want you in the water before the light changes.", "I lower it. I don't ask what comes back up.", "You laid that cable, nine years back. He's talked about you ever since."][b.n % 3], { id: "bay" + b.n, who: "bo" }); b.n++; } },
       { x: 250, r: 20, label: "climb in", act: () => {
         if (you.plain) say("Not in that coat.", { id: "coat" + floor(now / 8), who: "bo" });
         else { b.low = 1; b.t = 0; document.body.classList.add("cine"); knock(90, 0.4, 0.4); }
@@ -1217,7 +1410,7 @@ scenes.bay = {
   },
   draw() {
     const t = now, b = bay, drop = b.low ? sstep(1.0, 6.2, b.t) * 70 : 0, alarm = b.low && sin(b.t * 6.3) > 0;
-    tapVol = 0.07;
+    tapVol = 0.07; ambScene("bay"); amb.tgt.roar = b.low ? 0.07 : 0.02;
     env.holes = false; env.tones = 8; env.screen = "bayer"; env.lit = [222, 233, 238]; env.unlit = [8, 12, 17]; env.amb = 0.15; env.ambRow = null; env.sun = null;
     env.outline = "light"; env.haloMin = 0.15; env.cut = 0; env.fog = 0; env.bg = () => 0;
     env.lights = [{ x: 108, y: 44, z: -6, p: 3.2, k: 0.0008, dir: nrm3(0, 1, -0.2), c0: 0.05, c1: 0.7 }, { x: 222, y: 40, z: -6, p: 3.0, k: 0.0008, dir: nrm3(0.15, 1, -0.2), c0: 0.05, c1: 0.7 }, { x: 300, y: 70, z: 30, p: 1.1, k: 0.0016 }];
@@ -1287,12 +1480,14 @@ function hud() {
 function tick(dt) {
   if (started && scene) {
     now += dt; sceneT += dt;
+    const eHit = hit.has("KeyE") || hit.has("Enter"), had = !!lastPrompt;
     if (!pending) scene.step(dt);
-    pump(); tapTick();
+    if (eHit && !pending) (had ? sfx.use : sfx.nope)();
+    pump(); tapTick(); ambTick(dt);
     if (fade !== fadeTo) { fade = fadeTo > fade ? min(fadeTo, fade + dt * 2.2) : max(fadeTo, fade - dt * 1.6); $("#fade").style.opacity = fade; }
     if (pending && fade >= 1) { const p = pending; pending = null; enter(p.name, p.arg); fadeTo = 0; }
     if (cardT && now > cardT) { $("#card").classList.remove("on"); cardT = 0; }
-    scene.draw(); E.render(env, px); ctx.putImageData(img, 0, 0); hud(); placeMark();
+    scene.draw(); E.render(env, px); ctx.putImageData(img, 0, 0); hud(); placeMark(); capTick();
   }
   hit.clear(); anyTap = false;
 }
@@ -1303,7 +1498,7 @@ function frame(ts) {
   requestAnimationFrame(frame);
 }
 // debug: step the game by hand. __slack.run(seconds, [held key codes], [pressed once])
-window.__slack = { D, RUN, you, room, deck, home, trip, bay, go, keys, hit, ptr, run(sec, held = [], press = []) {
+window.__slack = { D, RUN, you, room, deck, home, trip, bay, go, keys, hit, ptr, amb, audio: startAudio, run(sec, held = [], press = []) {
   window.__hold = true; held.forEach((k) => keys.add(k)); press.forEach((k) => hit.add(k));
   for (let t = 0; t < sec; t += 1 / 30) tick(1 / 30);
   held.forEach((k) => keys.delete(k)); return { scene: Object.keys(scenes).find((k) => scenes[k] === scene), now: +now.toFixed(1), say: band.cur && band.cur.text };

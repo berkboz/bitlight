@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // node lab/slack/publish.mjs <site-dir> "what changed"
-// Snapshots the game into <site-dir>/slack/vN/ (self-contained: core.js is copied in beside it)
-// and rewrites <site-dir>/slack/index.html, the list of every version. Commit and push the
-// site repo afterwards; nothing here touches git.
+// Snapshots the game into <site-dir>/slack/vN/ (self-contained: core.js is copied in beside it),
+// makes that same build the one served at <site-dir>/slack/ itself, and rewrites
+// <site-dir>/slack/versions/index.html, the list of every version. Commit and push the site repo
+// afterwards; nothing here touches git.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,12 +25,21 @@ for (const f of ["core.js", "gpu.js"]) fs.copyFileSync(path.join(here, "../../sr
 if (process.argv.includes("--voice") && fs.existsSync(path.join(here, "voice"))) fs.cpSync(path.join(here, "voice"), path.join(dir, "voice"), { recursive: true });
 fs.writeFileSync(path.join(dir, "index.html"), fs.readFileSync(path.join(here, "index.html"), "utf8").replace("<title>SLACK</title>", `<title>SLACK</title>\n${NOINDEX}`));
 
+// the latest build is the main one: /slack/ serves it directly, with a small way back to the others
+for (const f of ["engine.js", "figures.js", "game.js", "core.js", "gpu.js"]) fs.copyFileSync(path.join(dir, f), path.join(out, f));
+fs.rmSync(path.join(out, "voice"), { recursive: true, force: true });
+if (fs.existsSync(path.join(dir, "voice"))) fs.cpSync(path.join(dir, "voice"), path.join(out, "voice"), { recursive: true });
+fs.writeFileSync(path.join(out, "index.html"), fs.readFileSync(path.join(dir, "index.html"), "utf8")
+  .replace("</style>", "  #vers { position:fixed; left:0; right:0; bottom:18px; text-align:center; font-size:10px; letter-spacing:.2em; text-transform:uppercase; }\n  #vers a { color:var(--dim); text-decoration:none; } #vers a:hover { color:var(--lit); }\n  #go.off #vers { display:none; }\n</style>")
+  .replace('<div id="go"><div>', `<div id="go"><div id="vers"><a href="./versions/" onclick="event.stopPropagation()">v${v} · every version</a></div><div>`));
+
 list.push({ v, date: new Date().toISOString().slice(0, 16).replace("T", " "), note });
 fs.writeFileSync(listFile, JSON.stringify(list, null, 2) + "\n");
 
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
-const rows = [...list].reverse().map((e, i) => `    <li><a href="./v${e.v}/"><b>v${e.v}</b>${i === 0 ? " <i>latest</i>" : ""}<span>${esc(e.note)}</span><time>${e.date} UTC</time></a></li>`).join("\n");
-fs.writeFileSync(path.join(out, "index.html"), `<!doctype html>
+const rows = [...list].reverse().map((e, i) => `    <li><a href="../v${e.v}/"><b>v${e.v}</b>${i === 0 ? " <i>latest</i>" : ""}<span>${esc(e.note)}</span><time>${e.date} UTC</time></a></li>`).join("\n");
+fs.mkdirSync(path.join(out, "versions"), { recursive: true });
+fs.writeFileSync(path.join(out, "versions", "index.html"), `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -54,7 +64,7 @@ ${NOINDEX}
 <body>
 <main>
   <h1>SLACK</h1>
-  <p>a cable went quiet · every build, newest first</p>
+  <p>a cable went quiet · every build, newest first · <a href="../" style="display:inline;padding:0;border:0;color:var(--lit)">play the latest</a></p>
   <ul>
 ${rows}
   </ul>
