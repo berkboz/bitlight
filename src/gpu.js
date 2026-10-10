@@ -7,7 +7,7 @@
  * It is a transliteration of core.js, not a second opinion: the constants are
  * core's, the screens are core's own SCREENS arrays, the camera is core.camera.
  * If core.js changes, change the GLSL below the same way; test/smoke.mjs renders
- * a ball on a plate both ways and fails if the tones drift apart.
+ * two scenes both ways and fails if the tones drift apart.
  *
  *   const view = gpu(canvas, { glsl, bound? })      → null without WebGL2 + float targets
  *   view.render({ yaw, pitch, half, target, lights, ambient, contrast, cell, ink, tones,
@@ -22,6 +22,7 @@ import { LOOK, SCREENS, camera, ramp } from "./core.js";
 
 const MAX_LIGHTS = 8;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const glslFloat = (v) => (/[.e]/.test(String(v)) ? String(v) : v + ".0");   // a JS number as a GLSL float literal, every digit kept
 
 // The sd helpers of core.sd, same names and arguments. GLSL has no defaults, so
 // sdBox and sdCylinder are overloaded; `revolve` hands back (radius, y) to feed a 2D profile.
@@ -148,6 +149,7 @@ void main() {
 const DITHER = /* glsl */ `#version 300 es
 precision highp float;
 precision highp int;
+precision highp sampler2D;   // the fragment default is lowp: it would round the float lum and depth
 uniform sampler2D uScene, uScreen;
 uniform ivec2 uCells;
 uniform int uCell, uOutH, uLevels, uGround, uDebug;
@@ -157,7 +159,7 @@ out vec4 o;
 float behind(ivec2 q, float d) {   // brightness of a neighbour that stands in front by more than HALO_DEPTH, else -1
   if (q.x < 0 || q.y < 0 || q.x >= uCells.x || q.y >= uCells.y) return -1.0;
   vec2 s = texelFetch(uScene, q, 0).xy;
-  return d - s.y > ${LOOK.HALO_DEPTH.toFixed(3)} ? s.x : -1.0;
+  return d - s.y > ${glslFloat(LOOK.HALO_DEPTH)} ? s.x : -1.0;
 }
 void main() {
   int i = int(gl_FragCoord.x) / uCell, j = (uOutH - 1 - int(gl_FragCoord.y)) / uCell;   // dot, row 0 on top
@@ -181,6 +183,7 @@ function parseColor(str, fallback) {
   probe ||= document.createElement("canvas").getContext("2d", { willReadFrequently: true });
   probe.fillStyle = fallback;
   probe.fillStyle = (str || "").trim() || fallback;
+  probe.clearRect(0, 0, 1, 1);   // a see-through colour must not blend with the one parsed before
   probe.fillRect(0, 0, 1, 1);
   const d = probe.getImageData(0, 0, 1, 1).data;
   return [d[0], d[1], d[2]];
@@ -188,19 +191,21 @@ function parseColor(str, fallback) {
 
 /** Compiles a program; the error says where your GLSL starts, since line numbers count from the generated source. */
 function program(gl, fs, vs = VS, own = 0) {
-  const make = (type, src) => {
-    const sh = gl.createShader(type);
-    gl.shaderSource(sh, src);
-    gl.compileShader(sh);
-    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS))
-      throw new Error(`bitlight/gpu: shader failed${own ? ` (your glsl starts at line ${own})` : ""}\n${gl.getShaderInfoLog(sh)}`);
-    return sh;
-  };
-  const p = gl.createProgram();
-  gl.attachShader(p, make(gl.VERTEX_SHADER, vs));
-  gl.attachShader(p, make(gl.FRAGMENT_SHADER, fs));
-  gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(`bitlight/gpu: ${gl.getProgramInfoLog(p)}`);
+  const shaders = [], p = gl.createProgram();
+  try {
+    for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+      const sh = gl.createShader(type);
+      shaders.push(sh);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS))
+        throw new Error(`bitlight/gpu: shader failed${own ? ` (your glsl starts at line ${own})` : ""}\n${gl.getShaderInfoLog(sh)}`);
+      gl.attachShader(p, sh);
+    }
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(`bitlight/gpu: ${gl.getProgramInfoLog(p)}`);
+  } catch (e) { gl.deleteProgram(p); throw e; }
+  finally { for (const sh of shaders) gl.deleteShader(sh); }   // a linked program keeps its binaries
   const cache = new Map();
   p.at = (name) => { if (!cache.has(name)) cache.set(name, gl.getUniformLocation(p, name)); return cache.get(name); };
   return p;
