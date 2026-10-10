@@ -40,7 +40,7 @@ const glass = (y0, z0) => (x, y, z) => (y > y0 && z > z0 && z < z0 + 0.13 ? 0.97
 // ---------- you ----------
 // Round, short-limbed and a little dopey: a big belly, a beard under the mask, two eyes that
 // don't quite agree, and flippers he never takes off.
-function diverParts(mode, f) {
+function diverParts(mode, f, plain) {
   const ph = (f / 8) * TAU, walk = mode === "walk", swim = mode === "swim", sit = mode === "sit";
   const sw = walk ? sin(ph) * 0.6 : swim ? sin(ph) * 0.45 : 0, br = mode === "idle" ? sin(ph) * 0.012 : 0;
   let P = [];
@@ -51,30 +51,44 @@ function diverParts(mode, f) {
     if (swim) { fx = sin(a) * 0.26; fy = 0.0; }
     P.push(C(0, 0.3, zz, fx, fy, zz, 0.115, 0.27));
     if (swim) P.push(E(fx, fy - 0.24, zz, 0.085, 0.26, 0.15, 0.86));               // flippers, trailing
+    else if (plain) P.push(E(fx + 0.07, fy - 0.02, zz, 0.15, 0.07, 0.1, 0.16));    // shoes
     else P.push(E(fx + 0.17, fy - 0.02, zz * 1.15, 0.27, 0.05, 0.14, 0.86));       // flippers, slapping
   }
-  P.push(E(0, 0.62, 0, 0.37 + br, 0.39, 0.34 + br, (x, y) => (abs(y - 0.74) < 0.035 ? 0.85 : 0.3)));   // the belly, with a stripe
-  P.push(CY(0, 0.43, 0, 0.375, 0.04, 0.74), B(0.36, 0.43, 0, 0.03, 0.05, 0.06, 0.01, 0.9));            // weight belt, buckle
-  P.push(C(-0.4, 0.5, 0, -0.4, 0.92, 0, 0.13, 0.86), S(-0.4, 1.04, 0, 0.07, 0.45));                    // tank
+  if (plain) {
+    P.push(E(0, 0.62, 0, 0.37 + br, 0.39, 0.34 + br, (x, y) => (y < 0.3 ? 0.22 : 0.56)));              // a coat over the belly
+    P.push(E(0.06, 0.98, 0, 0.2, 0.075, 0.23, 20.5));                                               // and a red scarf
+  } else {
+    P.push(E(0, 0.62, 0, 0.37 + br, 0.39, 0.34 + br, (x, y) => (abs(y - 0.74) < 0.035 ? 0.85 : 0.3)));   // the belly, with a stripe
+    P.push(CY(0, 0.43, 0, 0.375, 0.04, 0.74), B(0.36, 0.43, 0, 0.03, 0.05, 0.06, 0.01, 0.9));            // weight belt, buckle
+    P.push(C(-0.4, 0.5, 0, -0.4, 0.92, 0, 0.13, 0.86), S(-0.4, 1.04, 0, 0.07, 0.45));                    // tank
+  }
   for (const g of [1, -1]) {
     const a = -sw * g, zz = g * 0.37;
     let hx = 0.05 + sin(a) * 0.2, hy = 0.5;
     if (swim) { hx = 0.16 + 0.14 * sin(ph + g * 0.8); hy = 1.0 + 0.2 * cos(ph + g * 0.8); }
     if (sit) { hx = 0.26; hy = 0.56; }
-    P.push(C(0.04, 0.82, zz, hx, hy, zz * 1.12, 0.09, 0.3), S(hx, hy, zz * 1.12, 0.105, 0.9));
+    P.push(C(0.04, 0.82, zz, hx, hy, zz * 1.12, 0.09, plain ? 0.56 : 0.3), S(hx, hy, zz * 1.12, 0.105, 0.9));
   }
   P.push(S(0.04, 1.17, 0, 0.29, 0.9));                                             // face
-  P.push(E(-0.1, 1.21, 0, 0.29, 0.31, 0.315, 0.26));                               // hood
-  P.push(E(0.17, 1.0, 0, 0.16, 0.1, 0.2, 0.42));                                   // beard
-  P.push(B(0.24, 1.2, 0, 0.05, 0.14, 0.25, 0.06, 0.82));                           // mask rim
-  P.push(B(0.28, 1.2, 0, 0.065, 0.115, 0.22, 0.055, 0.1));                         // mask glass
-  P.push(S(0.335, 1.21, 0.1, 0.052, 0.98), S(0.335, 1.2, -0.085, 0.052, 0.98));    // eyes
-  P.push(S(0.378, 1.2, 0.085, 0.024, 0.03), S(0.378, 1.215, -0.075, 0.024, 0.03)); // pupils, not quite agreeing
-  P.push(C(0.12, 1.24, -0.33, 0.02, 1.62, -0.33, 0.04, 0.92), S(0.02, 1.65, -0.33, 0.06, 20.75)); // snorkel, red tip
+  if (plain) {
+    P.push(E(-0.07, 1.31, 0, 0.27, 0.2, 0.29, 0.2));                                 // hair
+    P.push(E(0.17, 1.02, 0, 0.16, 0.1, 0.2, 0.3));                                   // beard
+    P.push(S(0.31, 1.2, 0.11, 0.05, 0.98), S(0.31, 1.19, -0.09, 0.05, 0.98));        // eyes, out in the open
+    P.push(S(0.352, 1.19, 0.1, 0.024, 0.03), S(0.352, 1.205, -0.085, 0.024, 0.03));
+    P.push(S(0.33, 1.1, 0, 0.045, 0.82));                                            // nose
+  } else {
+    P.push(E(-0.1, 1.21, 0, 0.29, 0.31, 0.315, 0.26));                               // hood
+    P.push(E(0.17, 1.0, 0, 0.16, 0.1, 0.2, 0.42));                                   // beard
+    P.push(B(0.24, 1.2, 0, 0.05, 0.14, 0.25, 0.06, 0.82));                           // mask rim
+    P.push(B(0.28, 1.2, 0, 0.065, 0.115, 0.22, 0.055, 0.1));                         // mask glass
+    P.push(S(0.335, 1.21, 0.1, 0.052, 0.98), S(0.335, 1.2, -0.085, 0.052, 0.98));    // eyes
+    P.push(S(0.378, 1.2, 0.085, 0.024, 0.03), S(0.378, 1.215, -0.075, 0.024, 0.03)); // pupils, not quite agreeing
+    P.push(C(0.12, 1.24, -0.33, 0.02, 1.62, -0.33, 0.04, 0.92), S(0.02, 1.65, -0.33, 0.06, 20.75)); // snorkel, red tip
+  }
   if (walk) P = rotZ(P, sin(ph) * 0.085, 0, 0);                                     // the waddle
   return P;
 }
-export const diver = { name: "diver", frames: 8, box: [-0.85, -0.1, 0.85, 1.85], build: (p) => diverParts(p.m || "idle", p.f || 0) };
+export const diver = { name: "diver", frames: 8, box: [-0.85, -0.1, 0.85, 1.85], build: (p) => diverParts(p.m || "idle", p.f || 0, p.p) };
 // swimming: the same body, laid forward; origin at the belly
 export const swimmer = { name: "swimmer", frames: 8, box: [-1.15, -0.8, 1.15, 0.8], build: (p) => shift(rotZ(diverParts("swim", p.f || 0), -1.25, 0, 0.62), 0.05, -0.62) };
 // a marker lamp on the cable route: a pole, an arm, a hood, one bulb
@@ -302,6 +316,47 @@ export const slate = { name: "slate", box: [-0.45, -0.05, 0.45, 0.6], build: () 
   ...rotZ([B(0, 0.26, 0, 0.2, 0.17, 0.02, 0.02, (x, y) => (abs(x) < 0.15 && abs(((y * 13) % 1) - 0.5) < 0.2 && y > 0.14 && y < 0.4 ? 0.2 : 0.92))], 0.22, 0, 0.1),
   E(-0.22, 0.07, -0.04, 0.16, 0.1, 0.14, 0.42), C(0.14, 0.4, 0.02, 0.3, 0.05, 0.06, 0.012, 0.6), S(0.3, 0.04, 0.06, 0.03, 0.8),
 ] };
+// ---------- the way there ----------
+export const taxi = { name: "taxi", frames: 4, box: [-1.35, -0.05, 1.35, 1.3], build: ({ f = 0 }) => {
+  const w = (f / 4) * PI * 0.5, P = [
+    B(0, 0.42, 0, 0.98, 0.2, 0.42, 0.12, (x, y) => (abs(y - 0.44) < 0.03 ? 0.3 : 0.82)),
+    B(-0.08, 0.78, 0, 0.52, 0.2, 0.37, 0.14, (x, y, z) => (y > 0.66 && y < 0.92 && (z > 0.3 || abs(x + 0.08) > 0.46) ? 10.25 : 0.82)),   // windows, lit from inside
+    B(-0.08, 1.02, 0, 0.13, 0.05, 0.08, 0.02, 10.9),                                    // the sign on the roof
+    S(0.97, 0.44, 0.27, 0.07, 10.98), S(0.97, 0.44, -0.27, 0.07, 10.98), S(-0.98, 0.46, 0.28, 0.05, 20.9), S(-0.98, 0.46, -0.28, 0.05, 20.9),
+  ];
+  for (const x of [0.62, -0.62]) for (const z of [0.42, -0.42]) {
+    P.push(CZ(x, 0.2, z, 0.2, 0.07, 0.14), CZ(x, 0.2, z + Math.sign(z) * 0.05, 0.09, 0.04, 0.6));
+    P.push(S(x + cos(w) * 0.13, 0.2 + sin(w) * 0.13, z + Math.sign(z) * 0.08, 0.03, 0.75));
+  }
+  return P;
+} };
+export const plane = { name: "plane", box: [-1.7, -0.25, 1.7, 1.25], build: ({ lights = 1, blink = 0, gear = 0 }) => {
+  const P = [
+    C(-1.05, 0.5, 0, 0.95, 0.5, 0, 0.23, (x, y, z) => (lights && abs(y - 0.58) < 0.045 && x > -0.8 && x < 0.8 && floor(x * 6 + 20) % 2 === 0 ? 10.55 : y < 0.42 ? 0.6 : 0.92)),
+    S(1.02, 0.5, 0, 0.2, 0.92), E(0.98, 0.6, 0, 0.16, 0.07, 0.17, 0.14),                // nose, cockpit glass
+    B(0.05, 0.42, 0, 0.28, 0.03, 1.25, 0.02, 0.84), B(-1.12, 0.56, 0, 0.14, 0.02, 0.46, 0.02, 0.84), B(-1.12, 0.86, 0, 0.17, 0.3, 0.025, 0.02, 0.84),
+    CX(0.16, 0.3, 0.55, 0.09, 0.16, 0.5), CX(0.16, 0.3, -0.55, 0.09, 0.16, 0.5),
+    S(0.02, 0.44, 1.26, 0.05, blink ? 20.98 : 0.3), S(-1.14, 1.18, 0, 0.04, blink ? 20.98 : 0.3),
+  ];
+  if (gear) P.push(C(0.6, 0.3, 0, 0.6, 0.05, 0, 0.03, 0.4), S(0.6, 0.04, 0, 0.07, 0.14), C(-0.1, 0.3, 0.2, -0.1, 0.05, 0.2, 0.03, 0.4), S(-0.1, 0.04, 0.2, 0.08, 0.14), C(-0.1, 0.3, -0.2, -0.1, 0.05, -0.2, 0.03, 0.4), S(-0.1, 0.04, -0.2, 0.08, 0.14));
+  return P;
+} };
+export const launch = { name: "launch", box: [-1.35, -0.2, 1.35, 1.25], build: () => [
+  E(0, 0.18, 0, 1.05, 0.26, 0.38, (x, y) => (y > 0.26 ? 0.86 : 0.5)), cut(B(0, 0.5, 0, 0.92, 0.2, 0.3, 0.04)),
+  B(-0.42, 0.52, 0, 0.26, 0.2, 0.26, 0.05, (x, y, z) => (y > 0.48 && y < 0.66 && z > 0.2 ? 10.3 : 0.84)), B(-0.42, 0.74, 0, 0.3, 0.03, 0.3, 0.02, 0.6),
+  B(-1.02, 0.36, 0, 0.07, 0.2, 0.09, 0.02, 0.3),
+  C(0.82, 0.34, 0, 0.82, 0.92, 0, 0.02, 0.5), S(0.82, 0.98, 0, 0.075, 10.98),            // a lantern on a pole at the bow
+  E(-0.42, 0.56, 0.02, 0.1, 0.13, 0.1, 0.3), S(-0.42, 0.76, 0.02, 0.085, 0.86),            // whoever is steering
+] };
+export const phone = { name: "phone", box: [-0.4, -0.05, 0.4, 0.45], build: ({ ring = 0, off = 0 }) => {
+  const P = [B(0, 0.07, 0, 0.21, 0.06, 0.15, 0.04, 0.2), CZ(0.02, 0.1, 0.14, 0.075, 0.02, 0.62), S(-0.14, 0.14, 0.13, 0.026, ring ? 20.98 : 0.3)];
+  if (!off) { const k = ring ? 0.03 : 0; P.push(C(-0.17, 0.19 + k, 0, 0.17, 0.19 - k, 0, 0.045, 0.2), S(-0.19, 0.17 + k, 0, 0.065, 0.2), S(0.19, 0.17 - k, 0, 0.065, 0.2)); }
+  return P;
+} };
+export const bag = { name: "bag", box: [-0.5, -0.05, 0.5, 0.5], build: () => [
+  C(-0.24, 0.17, 0, 0.24, 0.17, 0, 0.17, (x) => (abs(x) < 0.03 ? 0.7 : 0.4)), TZ(0, 0.3, 0, 0.14, 0.02, 0.24), B(0.2, 0.2, 0.17, 0.05, 0.04, 0.01, 0.01, 0.8),
+] };
+
 export const starfish = { name: "starfish", box: [-0.42, -0.05, 0.42, 0.3], build: () => [
   S(0, 0.05, 0, 0.1, 0.84, 0.05), ...[0, 1, 2, 3, 4].map((i) => { const th = (i / 5) * TAU + 0.3; return C(0, 0.05, 0, cos(th) * 0.3, 0.035, sin(th) * 0.3, 0.06, 0.84, 0.06); }),
 ] };
@@ -344,4 +399,4 @@ export const jumper = { name: "jumper", box: [-0.5, -0.05, 0.5, 0.4], build: () 
   C(-0.2, 0.2, 0.1, 0.12, 0.2, -0.06, 0.05, 0.96), C(0.2, 0.2, 0.1, -0.12, 0.21, -0.06, 0.05, 0.9), TZ(0, 0.18, -0.16, 0.07, 0.02, 0.72),
 ] };
 
-export const ALL = { diver, swimmer, beacon, dumbo, seapig, slate, bo, cat, gull, radio, desk, chair, mug, lampShade, drum, crate, sub, fish, jelly, turtle, octo, angler, crab, starfish, rock, helmet, pod, rov, kettle, barnacles, sleeve, jumper };
+export const ALL = { diver, swimmer, beacon, dumbo, seapig, slate, taxi, plane, launch, phone, bag, bo, cat, gull, radio, desk, chair, mug, lampShade, drum, crate, sub, fish, jelly, turtle, octo, angler, crab, starfish, rock, helmet, pod, rov, kettle, barnacles, sleeve, jumper };

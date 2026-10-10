@@ -15,7 +15,7 @@ for (let p = 0; p < pages; p++) {
   E.rect(160, 84, 160, 2, 0.3, { z: -40 }); E.rect(160, 172, 160, 2, 0.3, { z: -40 });
   names.slice(p * perPage, (p + 1) * perPage).forEach((n, i) => {
     const def = ALL[n];
-    if (ONLY) { E.draw(def, { f: (frame + i * 2) % (def.frames || 1), m: process.env.MODE || "walk" }, 44 + i * 74, def.box[1] < -0.15 ? 100 : 168, { size: SIZE }); return; }
+    if (ONLY) { E.draw(def, { f: (frame + i * 2) % (def.frames || 1), m: process.env.MODE || "walk", p: 1, gear: 1, blink: 1, ring: 1 }, 44 + i * 74, def.box[1] < -0.15 ? 100 : 168, { size: SIZE }); return; }
     const col = i % 7, row = Math.floor(i / 7), cy = def.box[1] < -0.15 ? 44 + row * 88 : 82 + row * 88;
     E.draw(def, { f: frame % (def.frames || 1) }, 24 + col * 45, cy, { size: n === "sub" || n === "drum" ? 14 : 20 });
   });

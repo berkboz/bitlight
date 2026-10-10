@@ -42,8 +42,8 @@ function put(i, j, a, e, r, z, x, y, zn) {
 export function floorBand(fn, a, grain, o = {}) {
   const fx = Math.floor(curX), z0 = curZ + (o.z || 0);
   for (let i = 0; i < COLS; i++) {
-    const wx = fx + i, top = fn(wx) - curY, j0 = Math.max(0, Math.ceil(top));
-    for (let j = j0; j < ROWS; j++) {
+    const wx = fx + i, top = fn(wx) - curY, j0 = Math.max(0, Math.ceil(top)), j1 = o.rows ? Math.min(ROWS, Math.ceil(top + o.rows)) : ROWS;
+    for (let j = j0; j < j1; j++) {
       const k = j * COLS + i, d = j - top, z = z0 + d * ZK;
       if (z < zb[k]) continue;
       const rip = 0.5 + 0.5 * Math.sin(d * 0.9 + Math.sin(wx * 0.05 + d * 0.11) * 2.2);
@@ -101,6 +101,8 @@ export function dot(wx, wy, a, o = {}) {
   const i = Math.floor(wx - curX), j = Math.floor(wy - curY);
   if (i >= 0 && j >= 0 && i < COLS && j < ROWS) put(i, j, a, o.e || 0, o.red ? 1 : 0, curZ + (o.z || 0), 0, 0, 1);
 }
+// forget everything drawn so far at and below a screen row (far backdrops must not cover what another renderer draws there)
+export function clearBelow(row) { const k0 = Math.max(0, Math.ceil(row)) * COLS; if (k0 < N) { alb.fill(0, k0); emi.fill(0, k0); red.fill(0, k0); zb.fill(-1e9, k0); fl.fill(0, k0); } }
 export const onScreen = (wx, pad = 40) => wx > curX - pad && wx < curX + COLS + pad;
 
 // ---------- baked figures ----------
@@ -223,7 +225,7 @@ export function render(env, px) {
   const outline = env.outline, haloMin = env.haloMin ?? 0.1, px0 = Math.floor(cam.x), py0 = Math.floor(cam.y);
   // holes: another renderer (bitlight/gpu) draws the floor underneath, so leave floor cells clear
   // unless a figure's halo or the red light needs them
-  const holes = !!env.holes;
+  const holes = !!env.holes, holeRow = holes && env.holeRow !== undefined ? env.holeRow : 1e9;   // below holeRow, empty water is clear too: the other renderer has rock there
   for (let j = 0, k = 0; j < ROWS; j++) for (let i = 0; i < COLS; i++, k++) {
     let L = lum[k], edge = false;
     if (outline) {
@@ -236,7 +238,7 @@ export function render(env, px) {
       if (j < ROWS - 1 && alb[k + COLS] > 0 && !(holes && fl[k + COLS]) && zb[k + COLS] - z > HALO) near = Math.max(near, lum[k + COLS]);
       if (near > -1) { if (outline === "dark") L = 0; else if (Math.max(near, L) > haloMin) { L = 1; edge = true; } }
     }
-    if (holes && fl[k] && !edge && !rl[k]) { px[k] = 0; continue; }
+    if (holes && !edge && !rl[k] && (fl[k] || (j >= holeRow && alb[k] === 0 && emi[k] === 0))) { px[k] = 0; continue; }
     L -= cut;
     const v = L <= 0 ? 0 : Math.pow(L > 1 ? 1 : L, gamma), tt = v * top, b = tt | 0;
     let idx = b + (tt - b > scr[(((j + py0) & 7) << 3) + ((i + px0) & 7)] ? 1 : 0);
