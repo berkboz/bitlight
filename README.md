@@ -242,6 +242,19 @@ Films of figures are a few lines each (`film/films/pointer.mjs`); `--film`
 also takes a path, so films can live in another project. Workflow and lessons:
 [`skills/bitlight-film/SKILL.md`](skills/bitlight-film/SKILL.md).
 
+## Made with Bitlight
+
+<a href="https://theorkan.com/fish/"><img src="media/readme/fish.gif" width="100%" alt="Fish: a fish smoking a cigarette swims over a dark dithered seabed, past a car and a traffic light"></a>
+
+**[Fish](https://theorkan.com/fish/)** by [Orkan Celikhisar](https://github.com/orkancelikhisar).
+A fish smoking a cigarette in an endless deep sea. It follows your pointer; hold
+to take a drag, let go to exhale. Orkan moved the kernel (the lamp model and the
+Bayer screen) into a WebGL2 fragment shader, so the look runs on the GPU instead
+of the CPU: many lights, moving geometry, every frame.
+[14 s clip](media/made-with/fish.mp4).
+
+Built something on it? Open a PR that adds it here.
+
 ## Layout
 
 ```
@@ -254,7 +267,7 @@ film/              offline renderer: engine, figure, type, frame, render, score,
 film/films/        the films above
 docs/CONTROLS.md   ink, screen, lamp: reference and plan
 skills/            agent skills: bitlight-create, bitlight-film
-media/             rendered films for the site
+media/             rendered films for the site; made-with/ holds clips of other people's work
 look.mjs           figure checker + frame sheets
 test/smoke.mjs     package test (import, bounds, types, bundle, React, registry)
 build.mjs          generated files; --check for CI

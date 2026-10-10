@@ -96,10 +96,11 @@
   .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.45; }
 
   .films { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 20px; }
-  .films figure { margin: 0; display: grid; gap: 8px; min-width: 0; }
+  .films figure, .made figure { margin: 0; display: grid; gap: 8px; min-width: 0; }
   .films figure.wide { grid-column: 1 / -1; }
-  .films figcaption { font: 400 12px/1.4 var(--mono); color: var(--muted); }
-  .films figcaption b { color: var(--ink); font-weight: 500; }
+  .films figcaption, .made figcaption { font: 400 12px/1.4 var(--mono); color: var(--muted); }
+  .films figcaption b, .made figcaption b { color: var(--ink); font-weight: 500; }
+  .made a { color: var(--ink); }
   video { width: 100%; max-width: 100%; height: auto; display: block; background: var(--ink); }
   .rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--ink); }
   @media (max-width: 760px) { .rules { grid-template-columns: minmax(0, 1fr); } }
@@ -212,6 +213,12 @@
       <figure class="wide"><video controls muted playsinline preload="metadata" aria-label="Scenes: fans spinning, a computer lifting off, a lamp walking a server aisle, a laptop opening"><source src="media/scenes.mp4" type="video/mp4" /><source src="media/scenes.webm" type="video/webm" /></video><figcaption><b>Scenes</b> · 35 s · the props in motion</figcaption></figure>
     </div>
     <p class="hint" id="film-missing" hidden>The videos are not here yet. Render them with <code>node film/render.mjs --film &lt;name&gt;</code>.</p>
+  </section>
+
+  <section class="made">
+    <h2>Made with Bitlight</h2>
+    <p class="lede">Things other people built on the kernel. <a href="https://theorkan.com/fish/">Fish</a> by Orkan Celikhisar moves the lamp model and the Bayer screen into a WebGL2 shader, so the whole look runs on the GPU: many lights, moving geometry and an endless seabed, every frame.</p>
+    <figure><a href="https://theorkan.com/fish/" aria-label="Open Fish by Orkan Celikhisar"><video autoplay muted loop playsinline preload="metadata" aria-label="Fish: a fish smoking a cigarette swims over a dark dithered seabed, past a car and a traffic light, and takes a drag"><source src="media/made-with/fish.mp4" type="video/mp4" /></video></a><figcaption><b>Fish</b> · Orkan Celikhisar · the kernel on the GPU · the fish follows your pointer, hold to take a drag · <a href="https://theorkan.com/fish/">theorkan.com/fish</a></figcaption></figure>
   </section>
 
   <section>
