@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>SLACK</title>
+<style>
+  :root { --lit:#f1e4cd; --dim:#8d8371; --red:#ff4a2e; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:#060504; color:var(--lit); overflow:hidden;
+    font:13px/1.5 ui-monospace, "SF Mono", Menlo, monospace; -webkit-user-select:none; user-select:none; }
+  #stage { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+  #frame { position:relative; line-height:0; }
+  #frame { background:#000; }
+  canvas { image-rendering:pixelated; image-rendering:crisp-edges; display:block; touch-action:none; }
+  #g { position:absolute; left:0; top:0; display:none; }
+  #c { position:relative; }
+  .bar { position:absolute; left:0; right:0; height:0; background:#060504; transition:height .9s ease; }
+  .bar.t { top:0 } .bar.b { bottom:0 }
+  body.cine .bar { height:11%; }
+  #fade { position:absolute; inset:0; background:#060504; opacity:0; pointer-events:none; }
+  #card { position:absolute; inset:0; display:grid; place-items:center; text-align:center; line-height:1.9; letter-spacing:.32em; text-transform:uppercase;
+    font-size:12px; color:var(--lit); opacity:0; transition:opacity 1.2s ease; pointer-events:none; text-shadow:0 0 6px #000, 0 0 2px #000; white-space:pre-line; }
+  #card.on { opacity:1; }
+  #card small { display:block; font-size:9px; letter-spacing:.14em; color:var(--red); line-height:1.7; }
+  #card b { display:block; font-size:34px; letter-spacing:.5em; font-weight:400; margin-left:.5em; }
+  #prompt { position:absolute; left:0; right:0; bottom:8%; text-align:center; line-height:1.4; letter-spacing:.14em; font-size:11px; text-transform:uppercase;
+    color:var(--lit); opacity:0; transition:opacity .2s; pointer-events:none; text-shadow:0 0 4px #000, 0 0 2px #000, 0 1px 0 #000; }
+  #prompt.on { opacity:1; }
+  #prompt kbd { font:inherit; border:1px solid var(--lit); padding:0 .45em; margin-right:.6em; background:#0009; }
+  #gauge { position:absolute; right:14px; top:13%; bottom:13%; width:9px; opacity:0; transition:opacity .8s; pointer-events:none; line-height:1;
+    border-right:1px solid var(--lit); background:repeating-linear-gradient(to bottom, var(--lit) 0 1px, transparent 1px 12.5%) right / 9px 100% no-repeat,
+      repeating-linear-gradient(to bottom, var(--lit) 0 1px, transparent 1px 2.5%) right / 4px 100% no-repeat; }
+  #gauge.on { opacity:.9; }
+  #gauge i { position:absolute; right:-4px; width:9px; height:9px; margin-top:-4px; background:var(--red); border-radius:50%; box-shadow:0 0 0 2px #0008; }
+  #gauge i::before { content:attr(data-m); position:absolute; right:16px; top:-1px; white-space:nowrap; font-style:normal; font-size:11px; letter-spacing:.1em; color:var(--lit); text-shadow:0 0 4px #000, 0 0 2px #000; }
+  #gauge span { position:absolute; right:14px; font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); white-space:nowrap; text-shadow:0 0 3px #000; }
+  #gauge .a { top:-16px; right:0; } #gauge .z { bottom:-22px; right:0; }
+  #hud { position:fixed; left:14px; top:12px; color:var(--dim); letter-spacing:.1em; text-transform:lowercase; }
+  #hud b { color:var(--lit); font-weight:400; }
+  #salv { position:fixed; right:14px; top:12px; color:var(--dim); letter-spacing:.1em; text-transform:lowercase; }
+  #band { height:4.4em; width:min(94vw, 820px); text-align:center; }
+  #log { color:var(--dim); font-size:11px; letter-spacing:.16em; text-transform:uppercase; min-height:1.5em; }
+  #log.red { color:var(--red); }
+  #say { font-size:17px; letter-spacing:.02em; }
+  #go { position:fixed; inset:0; display:grid; place-items:center; background:radial-gradient(ellipse at 50% 50%, rgba(2,10,13,.72) 0, rgba(2,10,13,.3) 40%, transparent 68%); cursor:pointer; text-align:center; z-index:5; text-shadow:0 0 12px #000, 0 0 3px #000; }
+  #go.off { display:none; }
+  #go h1 { font-weight:400; font-size:44px; letter-spacing:.6em; margin:0 0 .2em .6em; }
+  #go p { color:var(--dim); letter-spacing:.24em; text-transform:uppercase; font-size:11px; margin:.5em 0; }
+  #go .p { animation:p 2.2s ease-in-out infinite; color:var(--lit); margin-top:3em; }
+  @keyframes p { 50% { opacity:.3 } }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="frame">
+    <canvas id="g" aria-hidden="true"></canvas>
+    <canvas id="c" aria-label="SLACK: a diver aboard a cable ship takes a briefing from a voice on the radio, boards a small submarine and follows a silent undersea cable down."></canvas>
+    <div class="bar t"></div><div class="bar b"></div>
+    <div id="gauge"><span class="a">surface</span><i data-m="0 m"></i><span class="z">the cable</span></div>
+    <div id="card"></div><div id="prompt"></div><div id="fade"></div>
+  </div>
+  <div id="band"><div id="log"></div><div id="say"></div></div>
+</div>
+<div id="hud"></div><div id="salv"></div>
+<div id="go"><div><h1>SLACK</h1><p>a cable went quiet</p><p class="p">click to begin</p><p>move · A D / W S &nbsp;·&nbsp; act · E &nbsp;·&nbsp; tool · space &nbsp;·&nbsp; lamp · pointer</p></div></div>
+<script type="module" src="./game.js"></script>
+</body>
+</html>
