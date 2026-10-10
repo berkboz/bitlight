@@ -11,12 +11,13 @@
  *
  *   const view = gpu(canvas, { glsl, bound? })      → null without WebGL2 + float targets
  *   view.render({ yaw, pitch, half, target, lights, ambient, contrast, cell, ink, tones,
- *                 palette, screen, theme, haloLight, bound, time })
+ *                 palette, screen, theme, haloLight, bound, time, uniforms })
  *   view.resize() · view.retheme() · view.levels() · view.destroy()
  *
  * The scene GLSL defines `float map(vec3 p)`, optionally `float occ(vec3 p)` (casters
  * only, never the floor: a convex ground cannot shade itself; default = map) and
- * `void material(vec3 p, vec3 n, inout Mat m)`; it may read `uniform float uTime`.
+ * `void material(vec3 p, vec3 n, inout Mat m)`; it may read `uniform float uTime`, and any
+ * uniforms of its own (float, vec2, vec3, vec4) that render() is given in `uniforms`.
  */
 import { LOOK, SCREENS, camera, ramp } from "./core.js";
 
@@ -340,6 +341,15 @@ export function gpu(canvas, opts = {}) {
       gl.uniform4f(scene.at("uBound"), bound ? bound[0] : 0, bound ? bound[1] : 0, bound ? bound[2] : 0, bound ? bound[3] : 0);
       gl.uniform1i(scene.at("uLightCount"), n);
       gl.uniform4fv(scene.at("uLightP"), LP); gl.uniform4fv(scene.at("uLightS"), LS); gl.uniform4fv(scene.at("uLightX"), LX);
+      // the scene's own uniforms: a number is a float, an array of 2–4 a vec; names the GLSL does not declare are skipped
+      for (const name in o.uniforms) {
+        const loc = scene.at(name), v = o.uniforms[name];
+        if (!loc) continue;
+        if (typeof v === "number") gl.uniform1f(loc, v);
+        else if (v.length === 2) gl.uniform2fv(loc, v);
+        else if (v.length === 3) gl.uniform3fv(loc, v);
+        else gl.uniform4fv(loc, v);
+      }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       ditherPass(null, canvas.width, canvas.height, cellPx, 0);
     },
