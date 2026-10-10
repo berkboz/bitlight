@@ -12,16 +12,17 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2), samples = args.includes("--samples"), voice = args.find((a) => !a.startsWith("--")) || "Daniel";
 export const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); };
-const RADIO = "asetrate=22050*0.92,aresample=22050,atempo=0.97,highpass=f=330,lowpass=f=3000,acompressor=threshold=-18dB:ratio=4:makeup=4,volume=1.5";
+// deep and old: pitched well down, a touch slower, a little chest left in before the radio narrows it
+const RADIO = "asetrate=22050*0.8,aresample=22050,atempo=1.12,highpass=f=170,lowpass=f=2700,equalizer=f=220:t=q:w=1:g=5,acompressor=threshold=-20dB:ratio=4:makeup=5,volume=1.4";
 function speak(text, v, out) {
   const tmp = out + ".aiff";
-  execFileSync("say", ["-v", v, "-r", "152", "-o", tmp, text]);
+  execFileSync("say", ["-v", v, "-r", "146", "-o", tmp, text]);
   execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-i", tmp, "-af", RADIO, "-ac", "1", "-b:a", "40k", out]);
   fs.rmSync(tmp);
 }
 if (samples) {
   const dir = path.join(here, "voice-samples"); fs.mkdirSync(dir, { recursive: true });
-  for (const v of ["Daniel", "Grandpa (English (UK))", "Ralph", "Reed (English (UK))"]) speak("Ah. There you are. Mind the step. There isn't one, but mind it anyway. Sit down, if you like.", v, path.join(dir, v.replace(/[^A-Za-z]+/g, "-").replace(/-$/, "") + ".mp3"));
+  for (const v of ["Daniel", "Grandpa (English (UK))", "Ralph", "Reed (English (UK))", "Fred"]) speak("Ah. There you are. Mind the step. There isn't one, but mind it anyway. Sit down, if you like.", v, path.join(dir, v.replace(/[^A-Za-z]+/g, "-").replace(/-$/, "") + ".mp3"));
   console.log("samples →", dir);
 } else {
   // every sentence in game.js that could be a line of his (captions come along too; they are simply never asked for)

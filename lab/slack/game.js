@@ -16,11 +16,16 @@ const img = ctx.createImageData(COLS, ROWS), px = new Uint32Array(img.data.buffe
 const gcv = $("#g");
 const GP = { view: null, tried: false, shown: false };
 let cellPx = 2;
+const GK = 2;                                             // GPU buffer pixels per dot: fixed, so its dots always match ours
 function fit() {
-  const cell = max(1, floor(min(innerWidth / COLS, (innerHeight - 130) / ROWS)));
-  cellPx = cell;
+  // whole pixels per dot when there is room; on a phone, whatever fits (the words then sit under a smaller reserve)
+  const small = innerHeight < 520 || innerWidth < 720, room = min(innerWidth / COLS, (innerHeight - (small ? 76 : 130)) / ROWS);
+  const cell = room >= 2 ? floor(room) : max(0.5, room);
   for (const c of [cv, gcv]) { c.style.width = COLS * cell + "px"; c.style.height = ROWS * cell + "px"; }
-  if (GP.view) GP.view.resize();
+  document.body.classList.toggle("small", small);
+  // bitlight/gpu sizes dots in CSS px; give it the cell that makes exactly GK buffer px per dot
+  if (gcv.width !== COLS * GK) { gcv.width = COLS * GK; gcv.height = ROWS * GK; }
+  cellPx = GK / ((COLS * GK) / (COLS * cell));
 }
 addEventListener("resize", fit); fit();
 
@@ -35,10 +40,34 @@ addEventListener("keydown", (e) => {
 addEventListener("keyup", (e) => keys.delete(e.code));
 const toCells = (e) => { const r = cv.getBoundingClientRect(); ptr.x = ((e.clientX - r.left) / r.width) * COLS; ptr.y = ((e.clientY - r.top) / r.height) * ROWS; ptr.moved = now; };
 cv.addEventListener("pointermove", toCells);
-cv.addEventListener("pointerdown", (e) => { toCells(e); ptr.down = true; });
+// a finger on the picture only aims the lamp: on touch, the tool is its own button
+cv.addEventListener("pointerdown", (e) => { toCells(e); if (e.pointerType !== "touch") ptr.down = true; });
 addEventListener("pointerup", () => (ptr.down = false));
-const ax = () => (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
-const ay = () => (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) - (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0);
+const stick = { x: 0, y: 0 };                             // the touch stick, when there is one
+const ax = () => (keys.has("KeyD") || keys.has("ArrowRight") || stick.x > 0.3 ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") || stick.x < -0.3 ? 1 : 0);
+const ay = () => (keys.has("KeyS") || keys.has("ArrowDown") || stick.y > 0.3 ? 1 : 0) - (keys.has("KeyW") || keys.has("ArrowUp") || stick.y < -0.3 ? 1 : 0);
+// ---------- touch: a stick on the left, act and hold on the right ----------
+let TOUCH = matchMedia("(pointer: coarse)").matches;
+function touchOn() { TOUCH = true; document.body.classList.add("touch"); }
+if (TOUCH) touchOn();
+addEventListener("touchstart", touchOn, { once: true, passive: true });
+{
+  const pad = $("#pad"), nub = $("#pad i");
+  const move = (e) => {
+    const r = pad.getBoundingClientRect(), dx = (e.clientX - r.left - r.width / 2) / (r.width / 2), dy = (e.clientY - r.top - r.height / 2) / (r.height / 2), l = max(1, hypot(dx, dy));
+    stick.x = dx / l; stick.y = dy / l; nub.style.transform = `translate(${stick.x * 30}px, ${stick.y * 30}px)`;
+  };
+  const end = () => { stick.x = stick.y = 0; nub.style.transform = ""; };
+  pad.addEventListener("pointerdown", (e) => { pad.setPointerCapture(e.pointerId); move(e); e.preventDefault(); });
+  pad.addEventListener("pointermove", (e) => { if (pad.hasPointerCapture(e.pointerId)) move(e); });
+  pad.addEventListener("pointerup", end); pad.addEventListener("pointercancel", end);
+  const hold = (el, code, tap) => {
+    el.addEventListener("pointerdown", (e) => { el.setPointerCapture(e.pointerId); if (tap) hit.add(code); else keys.add(code); el.classList.add("on"); e.preventDefault(); });
+    const up = () => { keys.delete(code); el.classList.remove("on"); };
+    el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  };
+  hold($("#bE"), "KeyE", true); hold($("#bT"), "Space", false);
+}
 const actHit = () => hit.has("KeyE") || hit.has("Enter");
 const toolDown = () => keys.has("Space") || ptr.down;
 
@@ -108,7 +137,7 @@ function pump() {
     if (n !== b.n) { if (b.cur.who === "radio" && !b.cur.dur && n % 3 === 0 && b.cur.text[n - 1] !== " ") blip(); b.n = n; $("#say").textContent = b.cur.text.slice(0, n); }
   }
 }
-const prompt = (label) => { const p = $("#prompt"); if (label) { p.innerHTML = label; p.classList.add("on"); } else p.classList.remove("on"); };
+const prompt = (label) => { const p = $("#prompt"); if (label) { p.innerHTML = TOUCH ? label.replace("hold space", "hold ●") : label; p.classList.add("on"); } else p.classList.remove("on"); };
 let cardT = 0;
 function card(html, secs = 4) { const c = $("#card"); c.innerHTML = html; c.classList.add("on"); cardT = now + secs; }
 
@@ -526,7 +555,7 @@ function gpuView() {
   if (!GP.tried) {
     GP.tried = true;
     if (!qs.has("cpu")) { try { GP.view = gpu(gcv, { glsl: SEA_GLSL }); } catch (e) { console.warn(e); GP.view = null; } }
-    fit();
+    gcv.width = 0; fit();                                                               // gpu() sized the buffer to the screen; put ours back
   }
   return GP.view;
 }
